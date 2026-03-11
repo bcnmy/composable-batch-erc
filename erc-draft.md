@@ -1,7 +1,7 @@
 ---
 eip: xxxx
-title: Composable Batch Execution and Predicate Contracts for Smart Accounts
-description: A standard for runtime-resolved composable batch execution and standalone predicate validator contracts that gate orchestrated, multi-step transaction flows on-chain.
+title: Smart Batching
+description: A smart account batch encoding where each parameter is resolved at execution time from on-chain state, with inline constraints that enable dynamic transactions and predicate-gated cross-chain orchestration.
 author: Mislav Javor, Filip Dujmušić, Filipp Makarov, Venkatesh Rajendran
 discussions-to:
 status: Draft
@@ -13,41 +13,30 @@ requires: 4337, 5792, 6900, 7579, 7702
 
 ## Abstract
 
-Today, every smart account batch is static: every call target, every parameter, every amount is frozen at the moment the user signs. The actual on-chain state at execution time is irrelevant — if a swap returns 91 tokens instead of the 95 you guessed, the batch reverts. If a bridge delivers with 0.3% more slippage than expected, the batch reverts. If you want to spend your full balance but gas costs are deducted first, you can't — because you don't know the gas cost at signature time.
+An Ethereum transaction is a single function call on a single contract. ERC-4337 and EIP-5792 (`wallet_sendCalls`) extended this with batch execution — multiple calls under one signature — but every parameter in these batches is static: frozen at signing time, blind to on-chain state at execution. If a swap returns fewer tokens than estimated, gas costs shift, or a bridge delivers with unexpected slippage — the batch reverts. The only workaround is deploying custom smart contracts for each multi-step flow, which introduces new attack surface and demands auditing, testing, and redeployment for every change — a poor security practice and an expensive, time-consuming process.
 
-This ERC eliminates that entire class of problems.
+This ERC introduces **smart batching**: a batch encoding where each parameter declares *how to obtain its value at execution time* and *what conditions that value must satisfy*. Parameters can be literals, live `staticcall` results, or balance queries — each independently resolved on-chain and validated against inline constraints before being assembled into the call. Dustless full-balance transfers, dynamic token splitting, MEV-aware execution guards, and cross-protocol composition become trivial — no Solidity required.
 
-**Composable Batch Execution** introduces a batch encoding where each parameter in each call declares *how to obtain its value at execution time*. A parameter can be a literal, or it can say "read this contract's balanceOf right now" or "make this arbitrary staticcall and use the result." The call's target address, ETH value, and every calldata argument are each independently resolved on-chain and assembled into the final call. Nothing is guessed. Nothing is stale.
+The same mechanism produces cross-chain orchestration for free. A batch entry with no call target still resolves parameters and checks constraints, becoming a pure boolean gate on chain state — a *predicate entry*. Relayers simulate batches and submit when on-chain conditions are met. Multi-chain flows execute as a single signed program, each step gated by verifiable on-chain predicates.
 
-This makes previously impossible flows trivial:
+Together, these primitives form a **verifiable scripting layer for the EVM**: developers author multi-step, multi-chain programs in TypeScript, compiled to a standard on-chain encoding, signed once, and executed entirely by the EVM. No contract deployment. No audit cycles for new flows.
 
-- **Dustless full-balance operations.** A user wants to spend their entire USDC balance. The batch reads `balanceOf` at execution time — after gas has been deducted, after prior steps have run — and passes the exact remaining amount. Zero dust. Zero reverts.
-- **Dynamic parameter splitting.** A user receives ~1000 USDC from a swap (minus slippage). They want 500 into a lending pool and whatever remains into a liquidity position. The first step uses a literal 500; the second reads the remaining balance. The split adapts to the actual swap output.
-- **Pay gas in the transaction token.** A user wants to swap their entire ETH balance to USDC. The batch reads the ETH balance after the gas payment has been deducted by the bundler, then passes the exact remainder to the swap. No need to estimate gas and subtract manually — the balance query sees the post-gas state.
-- **MEV-aware post-execution guards.** After a swap executes, a constraint checks that the received amount is above a minimum threshold. If a sandwich attack degrades the output below the user's tolerance, the entire batch reverts — on-chain, trustlessly, without relying on any off-chain MEV protection service.
-- **Multi-source aggregation.** A user bridges USDC from three different chains via three different bridges (Across, native bridge, intent solver). A predicate on the destination chain waits until *all three* balances have arrived, then a composable batch reads the total balance and injects it into a single deposit call. The bridges can complete in any order — the predicate simply waits for the aggregate state.
-- **Cross-protocol composition without custom contracts.** Swap on one DEX, approve the output, deposit into a vault, stake the LP token — all in a single signed batch, with each step's amount resolved from on-chain state. No Solidity. No deployment. Just a TypeScript SDK call.
-
-**Predicate Validator Contracts** provide the second primitive: standalone on-chain contracts that evaluate boolean conditions against chain state. Predicates gate execution of individual steps — "has the bridge delivered?", "is the balance above threshold?", "has the nonce advanced?", "has the timestamp passed?" — and are usable by any relayer, wallet, or execution infrastructure.
-
-Together, composable batching and predicates form the **end-game encoding for smart account transactions.** Static batching is to composable batching what static HTML is to a reactive frontend: the old model describes a fixed document; the new model describes *how to compute the document from live data.* Every parameter is a live query. Every constraint is an on-chain assertion. Every batch is self-resolving.
-
-This ERC standardizes the **encoding formats** and **interfaces** for both primitives. It does not prescribe a specific smart account module standard. The same encoding and execution semantics can be implemented as an ERC-7579 executor module, an ERC-6900 execution function, a native account method, or any future modular account surface. By standardizing at the encoding and interface level, any smart account ecosystem can adopt composable batch execution without fragmentation — SDKs, relayers, and block explorers can all speak the same wire format regardless of the underlying account architecture.
+This ERC standardizes the encoding formats and interfaces for smart batching. It is account-standard-agnostic: the same encoding works as an ERC-7579 module, ERC-6900 plugin, native account method, or ERC-7702 delegation target.
 
 ## Motivation
 
-### The Problem with Static Batching
+### Why Static Batching Is Insufficient
 
-Current smart account batching (ERC-4337 `executeBatch`, EIP-5792 `wallet_sendCalls`) is static. Every call target, every parameter, and every ETH value must be fully determined at signature time. Real-world DeFi flows produce dynamic outputs:
+Real-world DeFi flows produce dynamic, unpredictable outputs:
 
 - A swap yields a variable token amount depending on price impact, slippage, and MEV
 - A withdrawal from a lending vault returns a variable share-to-asset conversion
 - A bridge delivers tokens after an unpredictable delay with variable fees
 - A liquidation or rebalance depends on state that changes block-to-block
 
-Static batching forces two bad choices: hardcode optimistic amounts (risking reverts when the actual value differs) or underestimate conservatively (leaving value stranded in the account). Both degrade UX and capital efficiency. Developers resort to deploying custom smart contracts for each multi-step flow, or building off-chain orchestration servers that pre-compute parameters and re-sign — neither of which scales.
+Static batching forces two bad choices: hardcode optimistic amounts (risking reverts) or underestimate conservatively (leaving value stranded). Both degrade UX and capital efficiency.
 
-**Static batching vs composable batching:**
+**Static batching vs smart batching:**
 
 ```
 STATIC BATCHING (current model)
@@ -60,15 +49,15 @@ STATIC BATCHING (current model)
  ┌──────────────────────────┐            ┌──────────────────────────┐
  │ Step 1: swap(100 USDC)   │──────────► │ swap(100 USDC)           │ ✓ OK
  ├──────────────────────────┤            ├──────────────────────────┤
- │ Step 2: supply(95 WETH)  │──────────► │ supply(95 WETH)          │ ✗ REVERT
- │  (guessed swap output)   │            │  (actual output was 91)  │
+ │ Step 2: supply(0.05 WETH)  │──────────► │ supply(0.05 WETH)          │ ✗ REVERT
+ │  (guessed swap output)   │            │  (actual output was 0.0495)  │
  └──────────────────────────┘            └──────────────────────────┘
 
- Problem: amount "95" was a guess at signature time.
- If the swap returns 91, step 2 reverts — entire batch fails.
+ Problem: amount "0.05" was a guess at signature time.
+ If the swap returns <0.05, step 2 reverts — entire batch fails.
 
 
-COMPOSABLE BATCHING (this standard)
+SMART BATCHING (this standard)
 ═══════════════════════════════════════════════════════════════════
 
  Signature time                          Execution time
@@ -77,10 +66,10 @@ COMPOSABLE BATCHING (this standard)
 
  ┌──────────────────────────┐            ┌──────────────────────────┐
  │ Step 1: swap(100 USDC)   │──────────► │ swap(100 USDC)           │
- │  output → Storage[slot0] │            │  returns 91 → Storage    │
+ │  output → Storage[slot0] │            │  returns 0.0495 → Storage    │
  ├──────────────────────────┤            ├──────────────────────────┤
- │ Step 2: supply(amount)   │            │ supply(91 WETH)          │ ✓ OK
- │  amount = STATIC_CALL    │──────────► │  read Storage[slot0] = 91│
+ │ Step 2: supply(amount)   │            │ supply(0.0495 WETH)          │ ✓ OK
+ │  amount = STATIC_CALL    │──────────► │  read Storage[slot0] = 0.0495
  │          → Storage.read  │            │  constraint: GTE(1) ✓    │
  │  constraint: GTE(1)      │            └──────────────────────────┘
  └──────────────────────────┘
@@ -100,22 +89,22 @@ COMPOSABLE BATCHING (this standard)
   CALL_DATA ──► appended to calldata
 ```
 
-### Why Runtime Resolution
+### Runtime Resolution
 
-Composable batching resolves parameters at execution time. Instead of pre-encoding a static calldata blob, the user signs a batch where each parameter specifies *how to obtain its value* — either as a literal, a `staticcall` to an on-chain contract, or a balance query. The on-chain execution logic resolves each parameter and **constructs the calldata from scratch** during the transaction. This eliminates the entire class of failures caused by stale data between signature time and execution time.
+Smart batching resolves parameters at execution time. Instead of pre-encoding a static calldata blob, the user signs a batch where each parameter specifies *how to obtain its value* — as a literal, a `staticcall`, or a balance query. The execution logic resolves each parameter and **constructs the calldata from scratch** during the transaction, eliminating the entire class of failures caused by stale data.
 
-The calldata-construction design is deliberate. Rather than using pre-encoded calldata with sentinel bytes that get replaced (a placeholder/patching model), the system builds each call's target, value, and calldata from individually resolved parameters. This avoids offset arithmetic, keeps the encoding simple, and means each parameter can independently specify its resolution strategy and constraints.
+The calldata-construction design is deliberate: rather than patching pre-encoded calldata at sentinel offsets, the system builds each call from individually resolved parameters. This avoids offset arithmetic, keeps encoding simple, and lets each parameter independently specify its resolution strategy and constraints.
 
-### Orchestration as a Composition of Predicates
+### Emergent Predicates and Cross-Chain Orchestration
 
-For multi-chain flows, the same principle extends beyond a single transaction. A user signs a Merkle root authorizing a sequence of operations across chains. Each operation is gated by a *predicate* — an on-chain condition that must resolve to true before the operation executes. Relayers continuously evaluate predicates; when one resolves, the corresponding step is submitted.
+Each resolved value can carry inline constraints — on-chain assertions that must hold or the batch reverts. Within a single transaction, constraints validate dynamically resolved values. But because the execution algorithm resolves and validates *before* making the call, an entry with no call target (`address(0)`) becomes a pure boolean gate on chain state — a **predicate entry**. No separate mechanism required.
 
-> **Note on Merkle tree encoding:** The Merkle-tree-based authorization structure — how multiple function calls are encoded into leaves, hashed into a tree, and verified against a signed root — is defined by a **separate ERC** (the modular signature / session-key validation standard). This ERC defines the composable batch encoding and predicate interface that operate *within* each leaf. The two standards compose: the Merkle tree ERC handles authorization ("is this call allowed?"), while this ERC handles execution ("how is this call constructed and validated?").
+Predicate entries enable **execution ordering without explicit sequencing.** Each batch executes only when its predicates are satisfied. Step B observes the *state change* that A produces — not a sequence number. Bridges from multiple sources complete in any order; the predicate waits for the aggregate state.
 
-Predicates also enable **execution ordering without explicit sequencing.** Because each step only executes when its predicate is satisfied, the user does not need to specify "step B runs after step A." Instead, step B's predicate observes the *state change* that A produces. If the user bridges from three different sources (Across, native bridge, an intent-based solver), a predicate on the destination chain can simply wait until the aggregate balance exceeds a threshold — the order in which the three bridges complete is irrelevant. The predicate defines a *convergence point*, not a sequence number.
+> **Note on Merkle tree encoding:** The Merkle-tree authorization structure is defined by a **separate ERC**. This ERC defines the smart batch encoding and constraint mechanism that operate *within* each Merkle leaf. The two standards compose: the Merkle tree ERC handles authorization ("is this call allowed?"), while this ERC handles execution ("how is this call constructed and validated?").
 
 ```
-MULTI-CHAIN ORCHESTRATION VIA MERKLE TREE + PREDICATES
+MULTI-CHAIN ORCHESTRATION VIA MERKLE TREE + PREDICATE ENTRIES
 ═══════════════════════════════════════════════════════════════════
 
  User signs ONE Merkle root covering all operations:
@@ -142,45 +131,61 @@ MULTI-CHAIN ORCHESTRATION VIA MERKLE TREE + PREDICATES
   │ 100 USDC    │ │ batch:       │ │ batch:       │ │ batch:       │
   │ to Optimism │ │  swap → lend │ │  claim → LP  │ │  unwrap→send │
   │             │ │              │ │              │ │              │
-  │ Predicate:  │ │ Predicate:   │ │ Predicate:   │ │ Predicate:   │
-  │ (none—first │ │ USDC balance │ │ nonce > N    │ │ timestamp    │
-  │  step)      │ │ on OP ≥ 100  │ │ (confirms C  │ │ > T          │
-  └─────────────┘ │              │ │  landed)     │ │ (time lock)  │
+  │ Predicate   │ │ Predicate    │ │ Predicate    │ │ Predicate    │
+  │ entry:      │ │ entry:       │ │ entry:       │ │ entry:       │
+  │ (none—first │ │ BALANCE ≥100 │ │ STATIC_CALL  │ │ STATIC_CALL  │
+  │  step)      │ │ (USDC on OP) │ │ nonce > N    │ │ timestamp >T │
+  └─────────────┘ │              │ │              │ │              │
                   └──────────────┘ └──────────────┘ └──────────────┘
 
-  Execution flow (asynchronous, predicate-gated):
+  Execution flow (asynchronous, constraint-gated):
 
   Time ──────────────────────────────────────────────────────────►
 
-  t=0: Relayer submits A (no predicate — executes immediately)
+  t=0: Relayer submits A (no predicate entry — executes immediately)
        Bridge 100 USDC from L1 to Optimism
 
-  t=?: Relayer polls predicate for B:
-       "Is USDC balance on Optimism ≥ 100?"
-       Bridge completes... predicate satisfied ✓
+  t=?: Relayer simulates batch B (eth_call):
+       Predicate entry: BALANCE(USDC, account) with GTE(100e6)
+       Bridge completes... constraint satisfied ✓
        Relayer submits B: composable batch (swap → lend)
 
-  t=?: Relayer polls predicate for C:
-       "Is account nonce on Arbitrum > N?"
-       Prior tx confirms... predicate satisfied ✓
+  t=?: Relayer simulates batch C (eth_call):
+       Predicate entry: STATIC_CALL(entryPoint.getNonce()) with GTE(N)
+       Prior tx confirms... constraint satisfied ✓
        Relayer submits C: composable batch (claim → LP)
 
-  t=?: Relayer polls predicate for D:
-       "Is block.timestamp > T?"
-       Time passes... predicate satisfied ✓
+  t=?: Relayer simulates batch D (eth_call):
+       Predicate entry: STATIC_CALL(block.timestamp helper) with GTE(T)
+       Time passes... constraint satisfied ✓
        Relayer submits D: composable batch (unwrap → send)
 
   ─────────────────────────────────────────────────────────────
 
-  Key property: predicates observe STATE, not mechanism.
+  Key property: constraints observe STATE, not mechanism.
   The bridge in step A could be any provider — native bridge,
-  Across, ERC-7683, LayerZero — the predicate doesn't care.
+  Across, ERC-7683, LayerZero — the constraint doesn't care.
   It just waits for the balance to appear.
 ```
 
-Because predicates only observe *state* — not *how* that state was produced — orchestration is agnostic to the interoperability mechanism. Native rollup bridges, intent-based bridges, ERC-7683, message-passing protocols — any of them work. The predicate simply waits for the expected state to materialize.
+Because predicates observe *state* — not mechanism — orchestration is agnostic to the interoperability layer. Native rollup bridges, intent-based bridges, ERC-7683, message-passing protocols — any of them work. The predicate model is **credibly neutral**: any bridge, messaging protocol, or relayer network works if it produces the expected state change.
 
-This makes the predicate model **credibly neutral**: it does not privilege any bridge, messaging protocol, or relayer network. Any new interop provider works automatically if it produces the expected state change.
+### From Transactions to Programs
+
+Consider a common DeFi workflow: swap tokens, supply to a lending market, stake the receipt. Building this as a one-click experience today means deploying a custom smart contract — with testing, auditing, and redeployment for every change across every chain. Smart batching reduces this to a client-side script:
+
+```typescript
+const batch = smartBatch([
+  swap({ from: WETH, to: USDC, amount: fullBalance() }),
+  predicate({ balance: gte(USDC, account, 2500e6) }),
+  supply({ protocol: "aave", token: USDC, amount: fullBalance() }),
+  stake({ token: aUSDC, amount: fullBalance() }),
+]);
+```
+
+The SDK compiles this into `ComposableExecution` entries with fetchers, constraints, and storage instructions. The user signs once. Relayers execute on-chain. In multi-chain environments, the same model extends naturally — a cross-chain yield flow is a single signed program with predicate entries gating each step, authorized by one signature over a Merkle root.
+
+This is the paradigm shift: **from transactions to programs**. Smart batching gives developers a programmable, verifiable execution environment — with runtime variables, on-chain assertions, state passing, and cross-chain control flow — that runs entirely on the EVM.
 
 ## Specification
 
@@ -188,19 +193,19 @@ The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "S
 
 ### Definitions
 
-- **Composable batch**: An ordered array of `ComposableExecution` entries where each entry's call target, value, and calldata are constructed from individually resolved parameters, and return data MAY be captured for use by subsequent entries.
+- **Composable batch** (smart batch): An ordered array of `ComposableExecution` entries where each entry's call target, value, and calldata are constructed from individually resolved parameters with inline constraints on resolved values, and return data MAY be captured for use by subsequent entries.
 - **Input parameter**: A single value contributing to a call's target, value, or calldata. Each input parameter specifies how to obtain its value (fetcher type) and where to route it (param type).
 - **Fetcher type**: The strategy for resolving an input parameter's value at execution time — literal bytes, an arbitrary `staticcall`, or a balance query.
 - **Storage contract**: A dedicated external contract that provides namespaced key-value storage for captured return values. Values are written by output parameters and read back by subsequent input parameters via `staticcall`.
-- **Predicate**: A pure boolean condition evaluated against on-chain state. A predicate MUST NOT produce side effects.
-- **Constraint**: A predicate attached to a specific input parameter within a composable batch entry. If the constraint fails, the entry MUST NOT execute.
+- **Constraint**: An inline predicate — a pure boolean condition attached to a specific input parameter within a composable batch entry. If the constraint fails, the batch MUST revert.
+- **Predicate entry**: A `ComposableExecution` entry with no `TARGET` input parameter (target defaults to `address(0)`) whose sole purpose is to resolve on-chain state via input parameter fetchers and validate constraints. No call is executed; the entry acts as a boolean gate on the rest of the batch.
 
 ### Overview
 
 This standard defines three layers:
 
-1. **Encoding schemes** — The wire format for composable batches, runtime value sources, constraints, and predicates. This is the core of the standard. Any two conforming implementations MUST produce and consume identical encodings.
-2. **Interfaces** — Solidity interfaces (`IComposableExecution`, `IPredicate`) that any contract can implement. These are account-standard-agnostic.
+1. **Encoding schemes** — The wire format for composable batches, runtime value sources, and constraints. This is the core of the standard. Any two conforming implementations MUST produce and consume identical encodings.
+2. **Interfaces** — The Solidity interface (`IComposableExecution`) that any contract can implement. This is account-standard-agnostic.
 3. **Execution semantics** — The normative algorithm that all implementations MUST follow when processing a composable batch.
 
 How these are surfaced to a smart account is an implementation choice, not part of this standard:
@@ -436,7 +441,7 @@ SDK implementers SHOULD default to stateless getter reads and only fall back to 
 
 ---
 
-### Constraints (Inline Predicates)
+### Inline Constraints
 
 Constraints are predicates attached to individual input parameters within a composable batch. They validate the resolved value before it is routed:
 
@@ -463,135 +468,67 @@ Constraints operate on `bytes32` comparisons, which naturally handle `uint256`, 
 
 Implementations MUST evaluate all constraints on each input parameter against its resolved value. If any constraint fails, the implementation MUST revert the entire batch.
 
+#### Predicate Entries — General-Purpose Predicates via Constraints
+
+A **predicate entry** is a `ComposableExecution` entry that performs no call — it exists solely to check on-chain conditions. Because the execution algorithm skips the call when `target == address(0)` (the default when no `TARGET` input parameter is provided), but still resolves all input parameters and validates their constraints, any entry without a `TARGET` parameter acts as a pure boolean gate.
+
+A predicate entry:
+
+- MUST have no `TARGET` input parameter (target defaults to `address(0)`, call is skipped).
+- MUST have one or more `CALL_DATA` input parameters using `STATIC_CALL` or `BALANCE` fetcher types, each carrying `Constraint[]` that define the conditions.
+- SHOULD have empty `outputParams` (no values to capture from a skipped call).
+- MAY use `bytes4(0)` as `functionSig` (the selector is irrelevant since no call is made).
+
+Multiple input parameters on a single predicate entry are implicitly AND-composed — all constraints on all parameters must pass for the entry to succeed. Multiple predicate entries in the same batch provide sequential AND gates.
+
+**Example — balance predicate entry:**
+
+```solidity
+ComposableExecution({
+    functionSig: bytes4(0),
+    inputParams: [InputParam({
+        paramType: InputParamType.CALL_DATA,
+        fetcherType: InputParamFetcherType.BALANCE,
+        paramData: abi.encodePacked(USDC_ADDRESS, ACCOUNT_ADDRESS),
+        constraints: [Constraint({
+            constraintType: ConstraintType.GTE,
+            referenceData: abi.encode(100e6)
+        })]
+    })],
+    outputParams: []
+})
+```
+
+This entry resolves the account's USDC balance and asserts it is at least 100 USDC. If the constraint fails, the entire batch reverts. No call is executed.
+
+**Example — timestamp predicate entry (via STATIC_CALL):**
+
+```solidity
+ComposableExecution({
+    functionSig: bytes4(0),
+    inputParams: [InputParam({
+        paramType: InputParamType.CALL_DATA,
+        fetcherType: InputParamFetcherType.STATIC_CALL,
+        paramData: abi.encode(TIMESTAMP_HELPER, abi.encodeCall(ITimestamp.getTimestamp, ())),
+        constraints: [Constraint({
+            constraintType: ConstraintType.GTE,
+            referenceData: abi.encode(TARGET_TIMESTAMP)
+        })]
+    })],
+    outputParams: []
+})
+```
+
+Any on-chain state readable via `staticcall` can serve as a predicate condition — nonces, oracle prices, storage slots, timestamps — all through the same constraint mechanism.
+
 #### Constraints in Orchestration Context
 
 In a multi-chain orchestration context, constraints serve a dual purpose:
 
 1. **Validation** — ensuring injected values meet safety criteria (e.g., balance is non-zero, amount is above a minimum).
-2. **Execution ordering** — when an orchestrator retries steps until constraints are satisfied, constraints naturally gate cross-chain flows. For example, a constraint `GreaterThanOrEqual(bridgedAmount, minExpected)` on a destination-chain step causes the orchestrator to wait until the bridge completes before proceeding.
+2. **Execution gating** — predicate entries at the start of a batch gate the entire batch on on-chain conditions. Relayers simulate the batch via `eth_call`; if any predicate entry's constraints fail, the simulation reverts and the relayer waits. When simulation succeeds, the relayer submits the transaction. This naturally gates cross-chain flows — for example, a `GTE` constraint on a bridged token balance causes the relayer to wait until the bridge completes before proceeding.
 
----
-
-### Predicate Validator Contracts
-
-Predicate validator contracts are standalone on-chain contracts used outside of composable batch execution to gate orchestrated multi-step flows. They evaluate conditions against chain state and return a boolean result.
-
-#### Interface
-
-```solidity
-interface IPredicate {
-    /// @notice Evaluates a predicate against current on-chain state.
-    /// @param data ABI-encoded predicate parameters, specific to the implementation.
-    /// @return satisfied True if the predicate condition is met, false otherwise.
-    /// @dev MUST NOT modify state. MUST be safe to call via staticcall.
-    function evaluate(bytes calldata data) external view returns (bool satisfied);
-
-    /// @notice Returns a human-readable identifier for this predicate type.
-    /// @return name The predicate type name (e.g., "ERC20Balance", "Nonce", "Timestamp").
-    function predicateType() external pure returns (string memory name);
-}
-```
-
-Predicate validators MUST be stateless with respect to their own storage — they read external state and return a boolean. They MUST be safe to call from any context without side effects.
-
-#### Required Predicate Types
-
-Conforming implementations MUST provide predicate validator contracts for the following condition types:
-
-##### Balance Predicate
-
-Evaluates whether an ERC-20 token balance meets a threshold.
-
-```solidity
-// data encoding:
-// abi.encode(address token, address account, uint256 threshold, ComparisonOp op)
-
-enum ComparisonOp { Eq, Neq, Gt, Gte, Lt, Lte }
-```
-
-The predicate MUST call `IERC20(token).balanceOf(account)` and compare the result to `threshold` using the specified comparison operator.
-
-##### Native Balance Predicate
-
-Evaluates whether a native token (ETH) balance meets a threshold.
-
-```solidity
-// data encoding:
-// abi.encode(address account, uint256 threshold, ComparisonOp op)
-```
-
-##### Nonce Predicate
-
-Evaluates whether a smart account's nonce has reached or exceeded an expected value. This is used to gate steps that depend on prior transactions having been included.
-
-```solidity
-// data encoding:
-// abi.encode(address account, uint256 expectedNonce, ComparisonOp op)
-```
-
-The predicate MUST query the account's nonce using the appropriate mechanism for the account type (e.g., ERC-4337 EntryPoint nonce, or the account's own nonce method).
-
-##### Timestamp Predicate
-
-Evaluates whether the current block timestamp meets a condition.
-
-```solidity
-// data encoding:
-// abi.encode(uint256 targetTimestamp, ComparisonOp op)
-```
-
-The predicate MUST compare `block.timestamp` to `targetTimestamp` using the specified operator.
-
-##### Storage Predicate
-
-Evaluates whether a storage slot at a given contract contains an expected value.
-
-```solidity
-// data encoding:
-// abi.encode(address target, bytes32 slot, bytes32 expectedValue, ComparisonOp op)
-```
-
-The predicate MUST read the storage slot via `staticcall` (or equivalent mechanism) and compare it to `expectedValue`.
-
-##### Custom Call Predicate
-
-Evaluates a boolean condition based on the return value of an arbitrary `staticcall`.
-
-```solidity
-// data encoding:
-// abi.encode(address target, bytes callData, bytes32 expectedReturn, ComparisonOp op)
-```
-
-The predicate MUST execute `staticcall(target, callData)` and compare the first 32 bytes of the return data to `expectedReturn`.
-
-#### Predicate Composition
-
-Complex conditions MAY be expressed by combining predicates. A `CompositePredicate` evaluates multiple predicates with logical operators:
-
-```solidity
-interface ICompositePredicate is IPredicate {
-    /// @notice Evaluates a composite predicate (AND/OR over sub-predicates).
-    /// @param data ABI-encoded array of (predicateAddress, predicateData) pairs and a logical operator.
-    function evaluate(bytes calldata data) external view returns (bool satisfied);
-}
-```
-
-```solidity
-// data encoding:
-// abi.encode(
-//     LogicOp op,           // AND or OR
-//     PredicateCall[] calls  // array of sub-predicate calls
-// )
-
-enum LogicOp { And, Or }
-
-struct PredicateCall {
-    address predicateContract;
-    bytes predicateData;
-}
-```
-
-For `LogicOp.And`, the composite predicate MUST return `true` only if ALL sub-predicates return `true`. For `LogicOp.Or`, it MUST return `true` if ANY sub-predicate returns `true`.
+Because predicate entries use the same `ComposableExecution` encoding, `InputParam` fetcher types, and `Constraint` validation as any other batch entry, no additional contracts or interfaces are required. The entire predicate mechanism is a usage pattern of the existing composable execution primitives.
 
 ---
 
@@ -822,23 +759,19 @@ All composable execution logic SHOULD live in a shared library, with adapters be
 
 The calldata construction model concatenates each resolved `CALL_DATA` parameter in order. Each parameter is expected to be an ABI-encoded 32-byte word (a static Solidity type: `uint256`, `address`, `bytes32`, `bool`, etc.). Dynamic types (`bytes`, `string`, dynamic arrays) can be passed via `RAW_BYTES` fetcher (literal values known at encoding time) but cannot be resolved at runtime via `STATIC_CALL` or `BALANCE`, since those fetchers return raw bytes that are concatenated directly.
 
-### Standalone Predicate Contracts
+### Constraints as the Unified Predicate Mechanism
 
-Predicate evaluation is separated into standalone contracts rather than embedded in account logic, relayer code, or the composable execution system itself. This separation means:
+Rather than introducing a separate `IPredicate` interface and standalone predicate contracts, this standard uses the existing constraint mechanism on input parameters as the sole predicate primitive. This unified approach has several advantages:
 
-- Predicates are reusable across different accounts, relayers, and orchestration systems.
-- Predicates are independently auditable — each is a small, pure-function contract.
-- Any execution infrastructure can call the same predicate without reimplementing evaluation logic.
-- New predicate types can be deployed without upgrading any account or module.
+- **No additional contracts.** Predicate logic is already implemented in `ComposableExecutionLib._validateConstraints`. No separate deployment, no separate audit surface, no separate interface.
+- **One encoding format.** Predicates are expressed using the same `ComposableExecution` encoding as every other batch entry. SDKs, relayers, and block explorers parse one format.
+- **Composability through the fetcher system.** The `STATIC_CALL` fetcher can call any view function on any contract — balance queries, nonce checks, oracle reads, storage slot reads, timestamp helpers — making constraints arbitrarily expressive without enumerating predicate types.
+- **Simulation-based gating.** Relayers gate orchestration flows by simulating the batch via `eth_call`. If a predicate entry's constraints fail, the simulation reverts. This is functionally equivalent to a boolean `evaluate()` call, but requires no additional on-chain infrastructure.
 
-### Constraints as Inline Predicates
+The predicate entry pattern (a `ComposableExecution` with `target == address(0)`) collapses the distinction between intra-transaction validation and inter-transaction gating into one mechanism:
 
-Constraints within composable batch entries serve the same logical role as standalone predicates but are evaluated inline during batch execution. This dual approach exists because:
-
-- **Inline constraints** are for intra-transaction validation — "the value I'm about to inject meets my safety criteria."
-- **Standalone predicates** are for inter-transaction gating — "the chain state resulting from a prior transaction (possibly on another chain) has materialized."
-
-Both use the same predicate logic; the difference is scope and caller.
+- **Intra-transaction:** constraints on parameters of entries that execute calls — "the value I'm about to inject meets my safety criteria."
+- **Inter-transaction:** constraints on predicate entries at the start of a batch — "the chain state resulting from a prior transaction has materialized." Relayers simulate the batch and wait until the constraints pass.
 
 ### STATIC_CALL as the Universal Fetcher
 
@@ -850,10 +783,10 @@ This also means captured value passing is not a special mechanism — reading a 
 
 This proposal is fully backwards compatible with the existing smart account ecosystem. Because the standard is defined at the encoding and interface level, it does not impose requirements on any specific account architecture:
 
-- **ERC-4337 Smart Accounts**: Composable batching is additive. Existing `UserOperation` flows are unchanged. A conforming adapter is installed alongside existing modules and does not interfere with standard `executeBatch` operations.
+- **ERC-4337 Smart Accounts**: Smart batching is additive. Existing `UserOperation` flows are unchanged. A conforming adapter is installed alongside existing modules and does not interfere with standard `executeBatch` operations.
 - **ERC-7579 Accounts**: The `IComposableExecution` interface is wrapped as a standard ERC-7579 executor module. It installs, configures, and uninstalls through the standard ERC-7579 module lifecycle. It works with any ERC-7579 account without modifications to the account itself.
 - **ERC-6900 Accounts**: The `IComposableExecution` interface is wrapped as an ERC-6900 execution function. The composable batch encoding and execution algorithm are identical to the ERC-7579 adapter — only the installation manifest and permission hooks differ.
-- **EIP-5792 (`wallet_sendCalls`)**: Composable batching MAY be exposed as an extension to EIP-5792's `wallet_sendCalls` interface, adding parameter resolution capabilities alongside the existing static call array. The `capabilities` field in EIP-5792 provides a natural extension point for advertising composable execution support.
+- **EIP-5792 (`wallet_sendCalls`)**: Smart batching MAY be exposed as an extension to EIP-5792's `wallet_sendCalls` interface, adding parameter resolution capabilities alongside the existing static call array. The `capabilities` field in EIP-5792 provides a natural extension point for advertising smart batching support.
 - **ERC-7702**: Delegated EOAs can delegate to an implementation contract that directly exposes `IComposableExecution`, gaining composable execution without a smart account deployment.
 
 No existing smart account requires migration. The encoding format is self-contained and the `IComposableExecution` interface is a single function — adapters for any account standard are minimal.
@@ -866,18 +799,15 @@ A reference implementation accompanies this proposal, structured to demonstrate 
 
 1. **`IComposableExecution.sol`** — The standard interface (`executeComposable` and the module-specific `executeComposableCall` / `executeComposableDelegateCall` variants).
 2. **`ComposabilityDataTypes.sol`** — All structs and enums (`ComposableExecution`, `InputParam`, `OutputParam`, `Constraint`, `InputParamType`, `InputParamFetcherType`, `OutputParamFetcherType`, `ConstraintType`).
-3. **`ComposableExecutionLib.sol`** — The shared library implementing `processInputs()` and `processOutputs()` with the full resolution algorithm, all fetcher types, and constraint evaluation. This is the heart of the standard — any adapter delegates to this library.
+3. **`ComposableExecutionLib.sol`** — The shared library implementing `processInputs()` and `processOutputs()` with the full resolution algorithm, all fetcher types, and constraint evaluation. This is the heart of the standard — any adapter delegates to this library. Constraint validation within `processInputs` provides the inline predicate mechanism.
 4. **`Storage.sol`** — The external Storage contract providing namespaced key-value storage with per-account, per-caller isolation and initialized-slot tracking.
-5. **`IPredicate.sol`** — The standard predicate interface.
-6. **Predicate validator contracts** — Individual `IPredicate` implementations for each required predicate type (balance, native balance, nonce, timestamp, storage, custom call) plus a composite predicate for AND/OR logic.
 
 **Adapters (demonstrating portability):**
 
-6. **`ComposableExecutionModule.sol`** — An ERC-7579 executor module adapter wrapping the library.
-7. **`ComposableExecution6900Plugin.sol`** — An ERC-6900 execution function adapter wrapping the same library.
-8. **`ComposableExecutionBase.sol`** — An abstract base contract for native account integration.
+5. **`ComposableExecutionModule.sol`** — An ERC-7579 executor and fallback module adapter wrapping the library.
+6. **`ComposableExecutionBase.sol`** — An abstract base contract for native account integration.
 
-All three adapters delegate to the same `ComposableExecutionLib`, demonstrating that the encoding and execution semantics are identical regardless of the account standard.
+Both adapters delegate to the same `ComposableExecutionLib`, demonstrating that the encoding and execution semantics are identical regardless of the account standard.
 
 The reference implementation has been audited, with all findings remediated (see Security Considerations).
 
@@ -916,20 +846,20 @@ Users and SDK implementers SHOULD:
 - Be aware that `balanceOf` and similar calls reflect the account's state at that point in the transaction, which may include flash-loaned tokens.
 - Use `GTE` constraints with a non-zero reference value to prevent zero-value resolutions that could cause downstream reverts or economic loss.
 
-### Predicate Evaluation Integrity
+### Constraint Evaluation Integrity
 
-Predicate validators evaluate on-chain state and are subject to the same trust model as the underlying chain:
+Constraints evaluate on-chain state via the input parameter fetcher system (`STATIC_CALL`, `BALANCE`) and are subject to the same trust model as the underlying chain:
 
-- Predicates reflect state at the time of the `staticcall`. State may change between predicate evaluation and instruction inclusion in a block.
-- Cross-chain predicates inherit the trust assumptions of the queried chain. Orchestration does not introduce additional trust assumptions.
-- Predicate validators MUST NOT have side effects. They MUST be callable via `staticcall`.
+- Constraint values reflect state at the time of the `staticcall` or balance query. State may change between simulation and transaction inclusion in a block — a predicate entry that passes during `eth_call` simulation may fail when the transaction is actually executed if state changes in the interim.
+- Cross-chain predicate entries (constraints checking state produced by a bridge or cross-chain message) inherit the trust assumptions of the queried chain. The constraint mechanism does not introduce additional trust assumptions.
+- All constraint evaluation is read-only (fetchers use `staticcall` or `balance` queries), ensuring no side effects during predicate checking.
 
 ### Relayer Trust Model
 
-In orchestration flows, relayers evaluate predicates and submit gated instructions. The security model does not require trusting relayers:
+In orchestration flows, relayers simulate composable batches and submit them when predicate entries' constraints pass. The security model does not require trusting relayers:
 
 - Relayers cannot execute unauthorized instructions — each instruction is verified against a user-signed authorization (e.g., a Merkle root) on-chain.
-- Relayers cannot forge predicate results — predicates are evaluated on-chain at execution time, not off-chain.
+- Relayers cannot forge constraint results — constraints are evaluated on-chain at execution time within the composable batch, not off-chain. Even if a relayer submits a batch prematurely, the predicate entry's constraints will fail on-chain and the batch will revert.
 - A malicious relayer can only withhold execution (liveness failure), not steal funds or execute unauthorized operations. Users MAY mitigate liveness risk by authorizing multiple independent relayers.
 
 ### Reentrancy
