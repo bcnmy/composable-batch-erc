@@ -168,7 +168,7 @@ MULTI-CHAIN ORCHESTRATION VIA MERKLE TREE + PREDICATE ENTRIES
   It just waits for the balance to appear.
 ```
 
-Because predicates observe *state* — not mechanism — orchestration is agnostic to the interoperability layer. Native rollup bridges, intent-based bridges, ERC-7683, message-passing protocols — any of them work. The predicate model is **credibly neutral**: any bridge, messaging protocol, or relayer network works if it produces the expected state change.
+Because predicates observe *state* — not mechanism — orchestration is agnostic to the interoperability layer. Whether tokens arrive via a native rollup bridge, an intent-based system (ERC-7683), or a message-passing protocol (ERC-7786), the predicate only observes the resulting state change (e.g., balance ≥ threshold). The predicate model is **credibly neutral** with respect to the interoperability layer: any bridge, messaging protocol, or relayer network works if it produces the expected state change.
 
 ### From Transactions to Programs
 
@@ -354,7 +354,7 @@ enum OutputParamFetcherType {
 
 - `returnValueCount`: The number of consecutive 32-byte words to capture from the return data, starting at offset 0.
 - `storageContract`: The address of the Storage contract to write captured values to.
-- `storageSlot`: The base storage slot. Each captured word `i` is written to `keccak256(abi.encodePacked(storageSlot, i))`.
+- `storageSlot`: The base storage slot. Each captured word `i` (where `i` is a `uint256` index starting at 0) is written to `keccak256(abi.encodePacked(storageSlot, uint256(i)))`. The index MUST be encoded as `uint256` for consistent slot derivation across implementations.
 
 **`STATIC_CALL`** — Makes a separate `staticcall` after execution and captures from its return data. This is useful for reading state that changed as a result of the call (e.g., a new balance after a swap).
 
@@ -405,7 +405,7 @@ The `writeStorage` function derives the namespace from `(account, msg.sender)`, 
 #### How Captured Values Flow Between Steps
 
 1. Step N executes, producing return data.
-2. An `EXEC_RESULT` output parameter captures words from the return data and writes them to the Storage contract at `(storageSlot, i)` for each word `i`.
+2. An `EXEC_RESULT` output parameter captures words from the return data and writes them to the Storage contract at `keccak256(abi.encodePacked(storageSlot, uint256(i)))` for each word index `i`.
 3. Step N+1 has an input parameter with `fetcherType = STATIC_CALL` that calls `Storage.readStorage(namespace, slot)` to read back the captured value.
 4. The resolved value is routed to the appropriate destination (`TARGET`, `VALUE`, or `CALL_DATA`).
 
@@ -590,7 +590,7 @@ function executeComposable(ComposableExecution[] entries):
                 writeToStorage(externalData, outputParam.paramData)
 ```
 
-The `writeToStorage` step parses `returnValueCount` consecutive 32-byte words from the data and writes each to the Storage contract at `keccak256(abi.encodePacked(storageSlot, i))`, namespaced by `(account, caller)`.
+The `writeToStorage` step parses `returnValueCount` consecutive 32-byte words from the data and writes each to the Storage contract at `keccak256(abi.encodePacked(storageSlot, uint256(i)))` (where `i` is the zero-based word index as `uint256`), namespaced by `(account, caller)`.
 
 #### Error Handling
 
@@ -791,6 +791,14 @@ This proposal is fully backwards compatible with the existing smart account ecos
 
 No existing smart account requires migration. The encoding format is self-contained and the `IComposableExecution` interface is a single function — adapters for any account standard are minimal.
 
+### Forward Compatibility with EIP-8141 Frame Transactions
+
+Smart Batching is transport-agnostic. Today it executes via ERC-4337 UserOps or EIP-7702 delegation. When EIP-8141 frame transactions ship, the same `ComposableExecution[]` encoding executes within `SENDER` frames — gaining protocol-native inclusion, censorship resistance, and gas abstraction without changes to the encoding or execution semantics. Frame-level gas isolation additionally enables non-atomic multi-batch flows where individual smart batches can fail independently.
+
+### Interoperability Layer Neutrality (ERC-7683, ERC-7786)
+
+Smart Batching predicates are agnostic to the cross-chain mechanism. Whether tokens arrive via a native rollup bridge, an intent-based system (ERC-7683), or a message-passing protocol (ERC-7786), the predicate only observes the resulting state change (e.g., balance ≥ threshold). This is deliberate: the predicate model is credibly neutral with respect to the interoperability layer. No changes to the encoding, constraint evaluation, or execution semantics are needed to accommodate new or alternative bridging and messaging protocols.
+
 ## Reference Implementation
 
 A reference implementation accompanies this proposal, structured to demonstrate the encoding-first design:
@@ -808,6 +816,8 @@ A reference implementation accompanies this proposal, structured to demonstrate 
 6. **`ComposableExecutionBase.sol`** — An abstract base contract for native account integration.
 
 Both adapters delegate to the same `ComposableExecutionLib`, demonstrating that the encoding and execution semantics are identical regardless of the account standard.
+
+> **Note on reference implementation dependencies:** The current reference implementation uses the ERC-7579 `Execution` struct (imported from `IERC7579Account`) as an internal convenience type within `ComposableExecutionLib` and the base contract. It also contains implementation-specific constants (signature type identifiers) that are not part of the standard encoding. These are implementation artifacts, not normative requirements — conforming implementations MAY use any internal representation for the `(target, value, callData)` tuple. A future revision of the reference contracts will replace these with standard-local types to remove the ERC-7579 import dependency and implementation-specific constants.
 
 The reference implementation has been audited, with all findings remediated (see Security Considerations).
 
