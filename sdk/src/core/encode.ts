@@ -5,9 +5,6 @@ import {
   type Hex,
   encodeAbiParameters,
   toFunctionSelector,
-  toHex,
-  pad,
-  zeroAddress,
 } from 'viem'
 import {
   type ComposableExecution,

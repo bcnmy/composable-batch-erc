@@ -112,7 +112,7 @@ export type MaybeDynamic<T> = T extends readonly [infer Head, ...infer Tail]
       : T
 
 // ────────────────────────────────────────────────────────────
-// Step descriptor (what the user passes to batch.step())
+// Step descriptor (what the user passes to batch.add())
 // ────────────────────────────────────────────────────────────
 
 export type StepParams<
