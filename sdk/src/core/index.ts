@@ -5,10 +5,14 @@ export { composableBatch, BatchBuilder, approve, wrap, transfer } from './batch.
 export { token, native } from './token.js'
 export { contract } from './contract.js'
 export type { BoundToken } from './token.js'
-export type { BoundContract, StepDescriptor } from './contract.js'
+export type { BoundContract, StepDescriptor, CallOptions } from './contract.js'
 
-// Dynamic params and storage
-export { createDynamic, fromStorage } from './params.js'
+// Storage binding
+export { storage, fromStorage } from './storage.js'
+export type { BoundStorage, CaptureConfig } from './storage.js'
+
+// Dynamic params
+export { createDynamic } from './params.js'
 
 // Encoding (advanced)
 export { encodeStep, encodePredicate, isDynamic } from './encode.js'

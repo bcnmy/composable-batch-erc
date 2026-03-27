@@ -1,23 +1,17 @@
 import {
-  type Address,
   type Hex,
   encodeAbiParameters,
-  encodePacked,
-  keccak256,
-  zeroAddress,
-  encodeFunctionData,
 } from 'viem'
 import {
   type DynamicParam,
   type ConstrainedParam,
   type ConstraintDescriptor,
-  type StorageReadParams,
   ConstraintType,
   DYNAMIC,
 } from './types.js'
 
 // ────────────────────────────────────────────────────────────
-// DynamicParam factory (used by token.ts and contract.ts)
+// DynamicParam factory (used by token.ts, contract.ts, storage.ts)
 // ────────────────────────────────────────────────────────────
 
 export function createDynamic<T>(
@@ -65,38 +59,4 @@ export function createDynamic<T>(
       ]) as ConstrainedParam<T>
     },
   }
-}
-
-// ────────────────────────────────────────────────────────────
-// fromStorage() — read from Storage contract (with correct hashing)
-// ────────────────────────────────────────────────────────────
-
-const STORAGE_ABI = [
-  {
-    name: 'readStorage',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [
-      { name: 'namespace', type: 'bytes32' },
-      { name: 'slot', type: 'bytes32' },
-    ],
-    outputs: [{ type: 'bytes32' }],
-  },
-] as const
-
-export function fromStorage(params: StorageReadParams): DynamicParam<bigint> {
-  // Hash the namespace and slot — matches Storage.sol derivation
-  const namespace = keccak256(encodePacked(['address', 'address'], [params.account, params.caller]))
-  const derivedSlot = keccak256(encodePacked(['bytes32', 'uint256'], [params.slot, BigInt(params.index)]))
-
-  const callData = encodeFunctionData({
-    abi: STORAGE_ABI,
-    functionName: 'readStorage',
-    args: [namespace, derivedSlot],
-  })
-  const fetcherData = encodeAbiParameters(
-    [{ type: 'address' }, { type: 'bytes' }],
-    [params.storage, callData],
-  )
-  return createDynamic<bigint>('staticCall', fetcherData)
 }

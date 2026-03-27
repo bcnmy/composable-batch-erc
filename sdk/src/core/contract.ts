@@ -5,10 +5,11 @@ import {
   encodeFunctionData,
   encodeAbiParameters,
 } from 'viem'
-import { type DynamicParam, type MaybeDynamic } from './types.js'
+import { type DynamicParam, type OutputParam, OutputParamFetcherType } from './types.js'
+import type { ComposableExecution } from './types.js'
 import { createDynamic } from './params.js'
 import { encodeStep } from './encode.js'
-import type { ComposableExecution } from './types.js'
+import type { CaptureConfig } from './storage.js'
 
 // ────────────────────────────────────────────────────────────
 // StepDescriptor — opaque wrapper around ComposableExecution
@@ -17,6 +18,17 @@ import type { ComposableExecution } from './types.js'
 export interface StepDescriptor {
   /** @internal */
   readonly __encoded: ComposableExecution
+}
+
+// ────────────────────────────────────────────────────────────
+// CallOptions — optional config for contract.call()
+// ────────────────────────────────────────────────────────────
+
+export interface CallOptions {
+  /** ETH to forward with the call. */
+  value?: bigint | DynamicParam<bigint>
+  /** Capture return values to Storage. */
+  capture?: CaptureConfig
 }
 
 // ────────────────────────────────────────────────────────────
@@ -29,14 +41,14 @@ export interface BoundContract<abi extends Abi = Abi> {
 
   /**
    * Create a state-changing call step.
-   * Returns a StepDescriptor for batch.add().
    *
    * @example
    * ```ts
    * aave.call('supply', [WETH, weth.balance(), account, 0])
+   * aave.call('swap', args, { capture: store.capture('0x01', 2) })
    * ```
    */
-  call(functionName: string, args: readonly unknown[]): StepDescriptor
+  call(functionName: string, args: readonly unknown[], options?: CallOptions): StepDescriptor
 
   /**
    * Create a runtime read (STATIC_CALL fetcher).
@@ -56,9 +68,10 @@ export interface BoundContract<abi extends Abi = Abi> {
  * @example
  * ```ts
  * const aave = contract(AAVE_POOL, aavePoolAbi)
- * batch.add(aave, 'supply', [...])          // form 2
- * batch.add(aave.call('supply', [...]))     // form 1
- * lens.read('getHealthFactor', [...]).gte(min)  // dynamic param
+ * batch.add(aave, 'supply', [...])
+ * batch.add(aave.call('supply', [...]))
+ * batch.add(aave.call('swap', args, { capture: store.capture('0x01', 2) }))
+ * lens.read('getHealthFactor', [...]).gte(min)
  * ```
  */
 export function contract<const abi extends Abi>(
@@ -69,13 +82,28 @@ export function contract<const abi extends Abi>(
     address,
     abi,
 
-    call(functionName: string, args: readonly unknown[]): StepDescriptor {
+    call(functionName: string, args: readonly unknown[], options?: CallOptions): StepDescriptor {
+      const outputParams: OutputParam[] = []
+
+      if (options?.capture) {
+        const { storage, slot, count } = options.capture
+        outputParams.push({
+          fetcherType: OutputParamFetcherType.EXEC_RESULT,
+          paramData: encodeAbiParameters(
+            [{ type: 'uint256' }, { type: 'address' }, { type: 'bytes32' }],
+            [BigInt(count), storage, slot],
+          ),
+        })
+      }
+
       return {
         __encoded: encodeStep({
           to: address,
           abi: abi as Abi,
           functionName,
           args,
+          value: options?.value,
+          outputParams,
         }),
       }
     },

@@ -33,7 +33,8 @@ const router = contract(SWAP_ROUTER, routerAbi)
 ```typescript
 interface BoundToken {
   readonly address: Address
-  balance(): DynamicParam<bigint>   // BALANCE fetcher — runtime token balance
+  balance(): DynamicParam<bigint>              // BALANCE fetcher — runtime token balance
+  allowance(spender: Address): DynamicParam<bigint>  // STATIC_CALL to token.allowance(account, spender)
 }
 ```
 
@@ -47,12 +48,23 @@ Same interface. Uses `address(0)` sentinel for native ETH.
 interface BoundContract<abi extends Abi> {
   readonly address: Address
   readonly abi: abi
-  call(functionName: string, args: readonly unknown[]): StepDescriptor
+  call(functionName: string, args: readonly unknown[], options?: CallOptions): StepDescriptor
   read(functionName: string, args: readonly unknown[]): DynamicParam<bigint>
+}
+
+interface CallOptions {
+  value?: bigint | DynamicParam<bigint>    // ETH to forward with the call
+  capture?: CaptureConfig                  // capture return values to Storage
+}
+
+interface CaptureConfig {
+  storage: Address        // Storage contract address
+  slot: Hex               // base storage slot
+  count: number           // number of 32-byte words to capture
 }
 ```
 
-- `.call()` → produces a `StepDescriptor` (one `ComposableExecution` entry)
+- `.call()` → produces a `StepDescriptor` (one `ComposableExecution` entry). Optional `capture` adds output params for Storage.
 - `.read()` → produces a `DynamicParam` (STATIC_CALL fetcher, drop-in for any arg)
 
 ---
@@ -185,24 +197,53 @@ Each field becomes its own `CALL_DATA` InputParam. Static fields use `RAW_BYTES`
 
 ## 5. Storage: Capture and Read
 
-For flows that need return value passing between steps (when balance reads aren't sufficient):
+For flows that need return value passing between steps (when balance reads aren't sufficient).
+
+### Bound storage helper
+
+```typescript
+import { storage } from '@erc-xxxx/sdk'
+
+const store = storage(STORAGE_CONTRACT, { account, caller: MODULE_ADDRESS })
+```
+
+```typescript
+interface BoundStorage {
+  readonly address: Address
+
+  /** Read a captured value — returns DynamicParam for injection into args. */
+  read(slot: Hex, index: number): DynamicParam<bigint>
+
+  /** Create a CaptureConfig — for passing to contract.call() options. */
+  capture(slot: Hex, count: number): CaptureConfig
+}
+```
+
+### Capture + read workflow
+
+```typescript
+const store = storage(STORAGE_CONTRACT, { account, caller: MODULE_ADDRESS })
+
+// Step 1: call a function and capture 2 return values to Storage
+batch.add(someContract.call('swap', [tokenA, tokenB, amount], {
+  capture: store.capture('0x01', 2),
+}))
+
+// Step 2: read captured value in a later step
+batch.add(otherContract, 'deposit', [store.read('0x01', 0).gte(minAmount)])
+```
+
+`store.read()` computes `keccak256(account, caller)` for namespace and `keccak256(slot, uint256(index))` for the derived slot, matching [Storage.sol](../contracts/Storage.sol) exactly. `store.capture()` returns a `CaptureConfig` that `contract.call()` uses to generate `OutputParam` entries.
+
+### Standalone `fromStorage()` (alternative)
+
+For one-off reads without binding:
 
 ```typescript
 import { fromStorage } from '@erc-xxxx/sdk'
 
-// In a later step, read back a previously captured value:
-const capturedAmount = fromStorage({
-  storage: STORAGE_CONTRACT,
-  account: myAccount,
-  caller: MODULE_ADDRESS,
-  slot: '0x...baseSlot',
-  index: 0,           // which captured word
-})
-
-batch.add(someContract, 'doSomething', [capturedAmount.gte(minAmount)])
+fromStorage({ storage: STORAGE_CONTRACT, account, caller: MODULE_ADDRESS, slot: '0x01', index: 0 })
 ```
-
-`fromStorage()` computes `keccak256(account, caller)` for namespace and `keccak256(baseSlot, uint256(index))` for the derived slot, matching [Storage.sol](../contracts/Storage.sol) exactly.
 
 ---
 
@@ -243,6 +284,8 @@ StepDescriptor
   │           ├─ scalar static → InputParam { paramType: CALL_DATA, fetcherType: RAW_BYTES }
   │           ├─ DynamicParam → InputParam { paramType: CALL_DATA, fetcherType: BALANCE|STATIC_CALL }
   │           └─ tuple object → recurse: flatten each field into separate InputParams
+  │
+  ├─ CAPTURE: if CallOptions.capture provided → OutputParam[] with EXEC_RESULT fetcher
   │
   └─ OUTPUT:  selector + inputParams[] + outputParams[] = ComposableExecution
 ```
@@ -314,9 +357,10 @@ These are optional. `ComposableLens.readWordMulDiv` covers any single-field-with
 @erc-xxxx/sdk
 ├── core/
 │   ├── types.ts       # On-chain enum mirrors, DynamicParam, ConstrainedParam, MaybeDynamic
-│   ├── token.ts       # token(), native() → BoundToken
-│   ├── contract.ts    # contract() → BoundContract with .call() and .read()
-│   ├── params.ts      # createDynamic() factory, fromStorage()
+│   ├── token.ts       # token(), native() → BoundToken with .balance() and .allowance()
+│   ├── contract.ts    # contract() → BoundContract with .call(fn, args, options?) and .read()
+│   ├── storage.ts     # storage() → BoundStorage with .read() and .capture(); fromStorage()
+│   ├── params.ts      # createDynamic() factory
 │   ├── encode.ts      # encodeStep(), encodePredicate(), flattenArg(), isDynamic()
 │   ├── batch.ts       # composableBatch(), BatchBuilder, approve(), wrap(), transfer()
 │   └── index.ts       # Re-exports
