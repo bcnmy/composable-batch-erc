@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(.env)",
+      "Read(.env.local)",
+      "Read(.env.*.local)",
+      "Read(.env.production)",
+      "Read(.env.staging)",
+      "Read(.env.development)",
+      "Read(*.pem)",
+      "Read(*.key)",
+      "Read(*.jwk)",
+      "Read(*.p12)",
+      "Read(credentials.json)",
+      "Read(supabase/signing_key.json)",
+      "Read(serviceAccountKey.json)",
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(~/.gcp/**)"
+    ]
+  }
+}
