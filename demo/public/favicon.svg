@@ -1,1 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="#6366f1"/><path d="M10 22V10l6 6 6-6v12" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="4" fill="#09090b"/>
+  <text x="8" y="13" font-family="monospace" font-size="11" font-weight="bold" fill="#fafafa" text-anchor="middle">8</text>
+  <text x="24" y="13" font-family="monospace" font-size="11" font-weight="bold" fill="#fafafa" text-anchor="middle">8</text>
+  <text x="8" y="27" font-family="monospace" font-size="11" font-weight="bold" fill="#fafafa" text-anchor="middle">2</text>
+  <text x="24" y="27" font-family="monospace" font-size="11" font-weight="bold" fill="#fafafa" text-anchor="middle">1</text>
+  <line x1="16" y1="2" x2="16" y2="30" stroke="#27272a" stroke-width="0.5"/>
+  <line x1="2" y1="16" x2="30" y2="16" stroke="#27272a" stroke-width="0.5"/>
+</svg>
