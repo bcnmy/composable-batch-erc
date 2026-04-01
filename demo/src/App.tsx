@@ -55,6 +55,7 @@ export function App() {
   const [leverage, setLeverage] = useState(leverageAfterLoops(3))
   const [amountStr, setAmountStr] = useState('')
   const [withdrawStr, setWithdrawStr] = useState('')
+  const [withdrawIsMax, setWithdrawIsMax] = useState(false)
 
   const ethPrice = useEthPrice(chain?.aaveLens, chain?.aavePool, chain?.weth, chainId)
 
@@ -264,7 +265,7 @@ export function App() {
             )}
             {tab === 'withdraw' && (() => {
               const withdrawAmount = withdrawStr === '' ? 0 : parseFloat(withdrawStr)
-              const withdrawMax = withdrawStr === '' || withdrawAmount >= maxEth
+              const withdrawMax = withdrawIsMax || withdrawStr === '' || withdrawAmount >= maxEth * 0.999
               const isWithdrawWorking = ['building', 'quoting', 'signing', 'executing'].includes(withdrawState.status)
               const canWithdraw = isConnected && account && meeClient && chain && eoaAddress && withdrawAmount > 0 && !isWithdrawWorking
 
@@ -275,7 +276,7 @@ export function App() {
                       <span className="text-text-secondary">Withdraw to wallet</span>
                       {maxEth > 0 && (
                         <button
-                          onClick={() => setWithdrawStr(maxEth.toFixed(6))}
+                          onClick={() => { setWithdrawStr(maxEth.toFixed(6)); setWithdrawIsMax(true) }}
                           className="text-sm text-accent hover:underline transition"
                           disabled={isWithdrawWorking}
                         >
@@ -290,7 +291,7 @@ export function App() {
                         min="0"
                         max={maxEth}
                         value={withdrawStr}
-                        onChange={e => setWithdrawStr(e.target.value)}
+                        onChange={e => { setWithdrawStr(e.target.value); setWithdrawIsMax(false) }}
                         placeholder="0.0"
                         disabled={isWithdrawWorking}
                         className="flex-1 bg-transparent px-4 py-2.5 font-mono outline-none placeholder:text-text-tertiary"
