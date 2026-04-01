@@ -1,6 +1,6 @@
 const AAVE_WETH_LTV = 0.80
 const SWAP_FEE = 0.0005 // Uniswap fee tier 500 = 0.05%
-const EFFECTIVE_MULTIPLIER = AAVE_WETH_LTV * (1 - SWAP_FEE)
+const BORROW_FRACTION = 0.80 // borrowFraction=80 in buildLeverageLoopInstructions
 const LIQ_THRESHOLD = 0.825
 
 /** Compute the on-chain safety guard HF for a given loop count.
@@ -14,14 +14,28 @@ export function safetyGuardHF(loops: number): number {
 export const MIN_LEVERAGE = 1.5
 export const MAX_LEVERAGE = 4.0
 
+/**
+ * Simulate the actual Aave leverage loop to compute resulting leverage.
+ *
+ * Each iteration: supply WETH → borrow (BF% of available) USDC → swap USDC→WETH.
+ * Available borrows = totalCollateral * LTV - totalDebt (Aave formula).
+ *
+ * This matches the on-chain execution exactly (minus price impact).
+ */
 export function leverageAfterLoops(loops: number): number {
-  let leverage = 1
-  let multiplier = 1
+  const s = 1 - SWAP_FEE
+  let collateral = 1 // normalized
+  let debt = 0
+
   for (let i = 0; i < loops; i++) {
-    multiplier *= EFFECTIVE_MULTIPLIER
-    leverage += multiplier
+    const availableBorrows = collateral * AAVE_WETH_LTV - debt
+    const borrowed = availableBorrows * BORROW_FRACTION
+    const wethReceived = borrowed * s // swap USDC→WETH (same USD value, just fee)
+    collateral += wethReceived
+    debt += borrowed
   }
-  return leverage
+
+  return collateral // leverage = totalCollateral / equity, equity = 1 (normalized)
 }
 
 export function loopsForLeverage(target: number): number {
@@ -55,7 +69,7 @@ export function maxDrawdown(leverage: number): number {
 export function unwindIterationsNeeded(leverage: number): number {
   if (leverage <= 1) return 0
   const f = 0.80   // withdraw fraction per iteration
-  const s = 0.9995 // swap efficiency (1 - 0.05% Uniswap fee)
+  const s = 1 - SWAP_FEE
   let r = (leverage - 1) / leverage // debt-to-collateral ratio
 
   for (let n = 1; n <= 20; n++) {

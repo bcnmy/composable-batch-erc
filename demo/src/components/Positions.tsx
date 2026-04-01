@@ -10,11 +10,14 @@ type Props = {
   onClose?: () => void
   isClosing?: boolean
   closeStatus?: string
+  closeFee?: string
+  closeFeeValue?: string
+  closeFeeLoading?: boolean
 }
 
 export function Positions({
   hasPosition, totalCollateralBase, totalDebtBase, healthFactor,
-  isLoading, onClose, isClosing, closeStatus,
+  isLoading, onClose, isClosing, closeStatus, closeFee, closeFeeValue, closeFeeLoading,
 }: Props) {
   const [showSteps, setShowSteps] = useState(false)
 
@@ -116,6 +119,22 @@ export function Positions({
           </div>
         )}
       </div>
+
+      {/* Close fee estimate */}
+      {onClose && (closeFee || closeFeeLoading) && (
+        <div className="flex items-center justify-between text-sm text-text-tertiary px-1">
+          <span>Estimated close fee</span>
+          <span className="font-mono">
+            {closeFeeLoading
+              ? <span className="flex items-center gap-1.5">
+                  <span className="inline-block w-3 h-3 border-2 border-text-tertiary/20 border-t-text-tertiary rounded-full animate-spin" />
+                  estimating...
+                </span>
+              : <>{closeFee} ETH{closeFeeValue && <span className="text-text-tertiary ml-1">(${closeFeeValue})</span>}</>
+            }
+          </span>
+        </div>
+      )}
 
       {/* Close button */}
       {onClose && (

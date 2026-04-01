@@ -1,5 +1,5 @@
 import { createConfig, http } from 'wagmi'
-import { base, arbitrum, optimism, polygon, mainnet } from 'wagmi/chains'
+import { base, arbitrum, optimism, mainnet } from 'wagmi/chains'
 import { injected, coinbaseWallet } from 'wagmi/connectors'
 
 function rpc(chainId: number) {
@@ -9,7 +9,7 @@ function rpc(chainId: number) {
 }
 
 export const wagmiConfig = createConfig({
-  chains: [base, arbitrum, optimism, polygon, mainnet],
+  chains: [base, arbitrum, optimism, mainnet],
   connectors: [
     injected(),
     coinbaseWallet({ appName: 'Leverage Loop Demo' }),
@@ -18,7 +18,6 @@ export const wagmiConfig = createConfig({
     [base.id]: rpc(base.id),
     [arbitrum.id]: rpc(arbitrum.id),
     [optimism.id]: rpc(optimism.id),
-    [polygon.id]: rpc(polygon.id),
     [mainnet.id]: rpc(mainnet.id),
   },
 })

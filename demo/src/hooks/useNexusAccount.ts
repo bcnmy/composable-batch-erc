@@ -8,10 +8,10 @@ import {
   MEEVersion,
 } from '@biconomy/abstractjs'
 import type { MultichainSmartAccount } from '@biconomy/abstractjs'
-import { base, arbitrum, optimism, polygon, mainnet } from 'wagmi/chains'
+import { base, arbitrum, optimism, mainnet } from 'wagmi/chains'
 import type { Chain } from 'viem'
 
-const ALL_CHAINS: Chain[] = [base, arbitrum, optimism, polygon, mainnet]
+const ALL_CHAINS: Chain[] = [base, arbitrum, optimism, mainnet]
 
 function rpc(chainId: number) {
   return http(`/api/rpc?chainId=${chainId}`)

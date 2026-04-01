@@ -39,10 +39,13 @@ export function PositionPreview({
     <div className="space-y-4">
       {/* Position summary */}
       <div className="grid grid-cols-2 gap-y-2.5 gap-x-8">
-        <span className="text-text-tertiary">New position size</span>
+        <span className="text-text-tertiary">Leverage</span>
+        <span className="text-right font-mono">{leverage.toFixed(1)}x</span>
+
+        <span className="text-text-tertiary">Position size</span>
         <span className="text-right font-mono">{pos.totalCollateralEth} ETH</span>
 
-        <span className="text-text-tertiary">New borrowed</span>
+        <span className="text-text-tertiary">Borrowed</span>
         <span className="text-right font-mono">${pos.totalDebtUsd.toLocaleString()}</span>
 
         {hasExisting && (

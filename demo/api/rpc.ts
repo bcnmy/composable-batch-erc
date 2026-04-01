@@ -4,7 +4,6 @@ const RPC_URLS: Record<string, string | undefined> = {
   '8453': process.env.RPC_BASE,
   '42161': process.env.RPC_ARBITRUM,
   '10': process.env.RPC_OPTIMISM,
-  '137': process.env.RPC_POLYGON,
   '1': process.env.RPC_MAINNET,
 }
 
