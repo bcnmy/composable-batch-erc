@@ -14,15 +14,7 @@ import type { Chain } from 'viem'
 const ALL_CHAINS: Chain[] = [base, arbitrum, optimism, polygon, mainnet]
 
 function rpc(chainId: number) {
-  const envKeys: Record<number, string> = {
-    [base.id]: 'VITE_RPC_BASE',
-    [arbitrum.id]: 'VITE_RPC_ARBITRUM',
-    [optimism.id]: 'VITE_RPC_OPTIMISM',
-    [polygon.id]: 'VITE_RPC_POLYGON',
-    [mainnet.id]: 'VITE_RPC_MAINNET',
-  }
-  const url = import.meta.env[envKeys[chainId]]
-  return url ? http(url) : http()
+  return http(`/api/rpc?chainId=${chainId}`)
 }
 
 type NexusState = {

@@ -2,9 +2,10 @@ import { createConfig, http } from 'wagmi'
 import { base, arbitrum, optimism, polygon, mainnet } from 'wagmi/chains'
 import { injected, coinbaseWallet } from 'wagmi/connectors'
 
-function rpc(envKey: string) {
-  const url = import.meta.env[envKey]
-  return url ? http(url) : http()
+function rpc(chainId: number) {
+  // In production, RPC requests are proxied through /api/rpc to keep URLs server-side.
+  // Falls back to default public RPCs if no proxy is available (local dev without Vercel).
+  return http(`/api/rpc?chainId=${chainId}`)
 }
 
 export const wagmiConfig = createConfig({
@@ -14,10 +15,10 @@ export const wagmiConfig = createConfig({
     coinbaseWallet({ appName: 'Leverage Loop Demo' }),
   ],
   transports: {
-    [base.id]: rpc('VITE_RPC_BASE'),
-    [arbitrum.id]: rpc('VITE_RPC_ARBITRUM'),
-    [optimism.id]: rpc('VITE_RPC_OPTIMISM'),
-    [polygon.id]: rpc('VITE_RPC_POLYGON'),
-    [mainnet.id]: rpc('VITE_RPC_MAINNET'),
+    [base.id]: rpc(base.id),
+    [arbitrum.id]: rpc(arbitrum.id),
+    [optimism.id]: rpc(optimism.id),
+    [polygon.id]: rpc(polygon.id),
+    [mainnet.id]: rpc(mainnet.id),
   },
 })
