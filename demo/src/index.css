@@ -1,27 +1,31 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --color-surface: #09090b;
-  --color-surface-alt: #111113;
-  --color-surface-raised: #18181b;
-  --color-surface-secondary: #1c1c1f;
-  --color-border: #27272a;
-  --color-border-dim: #1c1c1f;
-  --color-accent: #3b82f6;
-  --color-accent-dim: #2563eb;
-  --color-success: #22c55e;
-  --color-danger: #ef4444;
-  --color-warning: #eab308;
-  --color-text: #fafafa;
-  --color-text-secondary: #a1a1aa;
-  --color-text-tertiary: #52525b;
-  --font-family-sans: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
-  --font-family-mono: 'SF Mono', 'Fira Code', 'Fira Mono', monospace;
+  --color-surface: #fafaf9;
+  --color-surface-alt: #f7f6f3;
+  --color-surface-raised: #ffffff;
+  --color-surface-secondary: #f5f5f5;
+  --color-border: #d4d4d4;
+  --color-border-dim: #ebebeb;
+  --color-accent: #2563eb;
+  --color-accent-dim: #3b82f6;
+  --color-success: #16a34a;
+  --color-danger: #dc2626;
+  --color-warning: #d97706;
+  --color-text: #111111;
+  --color-text-secondary: #404040;
+  --color-text-tertiary: #717171;
+  --font-family-sans: 'Inter', system-ui, sans-serif;
+  --font-family-mono: 'JetBrains Mono', 'SF Mono', monospace;
+  --font-family-display: 'Source Serif 4', Georgia, serif;
 }
 
 html, body {
-  font-size: 16px;
-  background-color: #09090b;
+  font-size: 15px;
+  background-color: #fafaf9;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Hide number input spinners */

@@ -138,7 +138,7 @@ export function App() {
             </div>
 
             {tab === 'trade' && (
-              <div className="border border-border-dim rounded-lg p-5 space-y-5">
+              <div className="bg-surface-raised border border-border-dim rounded-lg p-5 space-y-5">
                 {!hasUsableBalance && balances.ethBalance > 0n && (
                   <p className="text-sm text-text-tertiary text-center py-4">
                     Balance too low to open a position. Deposit more ETH to your smart account.
@@ -270,7 +270,7 @@ export function App() {
               const canWithdraw = isConnected && account && meeClient && chain && eoaAddress && withdrawAmount > 0 && !isWithdrawWorking
 
               return (
-                <div className="border border-border-dim rounded-lg p-5 space-y-5">
+                <div className="bg-surface-raised border border-border-dim rounded-lg p-5 space-y-5">
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
                       <span className="text-text-secondary">Withdraw to wallet</span>

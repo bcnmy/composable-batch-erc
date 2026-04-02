@@ -108,7 +108,7 @@ export function PositionPreview({
             const pnlUsd = totalEquityUsd * effectiveLeverage * (move / 100)
             const isNeg = move < 0
             return (
-              <div key={move} className={`py-2.5 ${isNeg ? 'bg-danger/5' : 'bg-success/5'}`}>
+              <div key={move} className={`py-2.5 ${isNeg ? 'bg-danger/[0.04]' : 'bg-success/[0.04]'}`}>
                 <p className="text-text-tertiary text-sm">{label}</p>
                 <p className={`font-mono font-medium mt-0.5 ${isNeg ? 'text-danger' : 'text-success'}`}>
                   {pnlUsd >= 0 ? '+' : ''}${Math.round(pnlUsd).toLocaleString()}
