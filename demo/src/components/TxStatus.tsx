@@ -11,7 +11,7 @@ export function TxStatus({ status, txHash, explorerUrl, error, successLabel = 'P
   if (status !== 'success' && status !== 'error') return null
 
   return (
-    <div className="border border-border-dim rounded-lg p-3 space-y-1.5">
+    <div className="bg-surface-raised border border-border-dim rounded-lg p-3 space-y-1.5">
       {status === 'success' && (
         <div className="flex items-center justify-between">
           <span className="text-sm text-success">{successLabel}</span>

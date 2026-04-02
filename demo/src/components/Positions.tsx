@@ -38,7 +38,7 @@ export function Positions({
 
   return (
     <div className="space-y-3">
-      <div className="border border-border-dim rounded-lg p-4 space-y-4">
+      <div className="bg-surface-raised border border-border-dim rounded-lg p-4 space-y-4">
         {/* Position header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -54,7 +54,7 @@ export function Positions({
 
         {/* Visual bar: collateral vs debt */}
         <div className="space-y-1">
-          <div className="h-2 rounded-full bg-surface-secondary overflow-hidden">
+          <div className="h-2 rounded-full bg-border-dim overflow-hidden">
             <div
               className="h-full bg-accent rounded-full"
               style={{ width: `${Math.min(100, (netUsd / collateralUsd) * 100)}%` }}
@@ -144,7 +144,7 @@ export function Positions({
           className={`w-full py-2.5 rounded-lg text-sm font-medium transition ${
             isClosing
               ? 'bg-surface-secondary text-text-tertiary cursor-wait'
-              : 'bg-danger/10 text-danger hover:bg-danger/20 border border-danger/20'
+              : 'bg-danger/[0.06] text-danger hover:bg-danger/10 border border-danger/15'
           }`}
         >
           {isClosing

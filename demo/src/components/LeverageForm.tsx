@@ -31,7 +31,7 @@ export function LeverageForm({ leverage, loops, onLeverageChange, disabled }: Pr
         value={leverage}
         onChange={e => handleChange(parseFloat(e.target.value))}
         disabled={disabled}
-        className="w-full h-1 bg-border rounded-full appearance-none cursor-pointer
+        className="w-full h-1 bg-border-dim rounded-full appearance-none cursor-pointer
           [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
           [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent
           [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full

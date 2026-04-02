@@ -85,7 +85,7 @@ export function FlowDiagram({ loops }: Props) {
               <p className="text-xs text-text-tertiary uppercase tracking-wider font-medium mb-3">
                 ERC-8211 SDK (pseudocode)
               </p>
-              <pre className="text-xs font-mono text-text-secondary bg-surface rounded-lg p-3 overflow-x-auto leading-relaxed max-h-[420px] overflow-y-auto">
+              <pre className="text-xs font-mono text-text-secondary bg-surface-secondary border border-border-dim rounded-lg p-3 overflow-x-auto leading-relaxed max-h-[420px] overflow-y-auto">
                 {CODE_EXAMPLE}
               </pre>
               <p className="text-sm text-text-tertiary mt-2">

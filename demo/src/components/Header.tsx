@@ -24,7 +24,6 @@ export function Header() {
     setTimeout(() => setCopied(false), 1500)
   }
 
-  // Close menus on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (chainRef.current && !chainRef.current.contains(e.target as Node)) setShowChainMenu(false)
@@ -35,9 +34,10 @@ export function Header() {
   }, [])
 
   return (
-    <header className="flex items-center justify-between px-6 h-14 border-b border-border-dim bg-surface">
+    <header className="flex items-center justify-between px-6 h-14 border-b border-border-dim bg-surface-raised">
       <span className="font-medium tracking-tight text-text-secondary">
-        Leverage Loop <span className="text-text-tertiary ml-1">ERC-8211 Smart Batching Demo</span>
+        <span className="font-display text-text">Leverage Loop</span>
+        <span className="text-text-tertiary ml-2 text-sm">ERC-8211 Smart Batching Demo</span>
       </span>
 
       <div className="flex items-center gap-2">
@@ -45,14 +45,14 @@ export function Header() {
           <div ref={chainRef} className="relative">
             <button
               onClick={() => { setShowChainMenu(!showChainMenu); setShowWalletMenu(false) }}
-              className="flex items-center gap-2 border border-border rounded px-3 py-1.5 text-sm text-text-secondary hover:text-text hover:border-border transition"
+              className="flex items-center gap-2 border border-border-dim rounded-lg px-3 py-1.5 text-sm text-text-secondary hover:text-text hover:border-border bg-surface-raised transition"
             >
               {currentChain?.name ?? 'Unknown'}
               <span className={`text-xs transition-transform ${showChainMenu ? 'rotate-180' : ''}`}>&#9662;</span>
             </button>
 
             {showChainMenu && (
-              <div className="absolute right-0 top-full mt-1 bg-surface-raised border border-border rounded-lg shadow-lg z-50 min-w-[160px] py-1">
+              <div className="absolute right-0 top-full mt-1 bg-surface-raised border border-border-dim rounded-lg shadow-sm z-50 min-w-[160px] py-1">
                 {chains.map(c => (
                   <button
                     key={c.id}
@@ -75,14 +75,14 @@ export function Header() {
           <div ref={walletRef} className="relative">
             <button
               onClick={() => { setShowWalletMenu(!showWalletMenu); setShowChainMenu(false) }}
-              className="flex items-center gap-2 border border-border rounded px-3 py-1.5 text-sm text-text-secondary hover:text-text hover:border-border transition"
+              className="flex items-center gap-2 border border-border-dim rounded-lg px-3 py-1.5 text-sm text-text-secondary hover:text-text hover:border-border bg-surface-raised transition"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-success" />
               <span className="font-mono">{shortAddr}</span>
             </button>
 
             {showWalletMenu && (
-              <div className="absolute right-0 top-full mt-1 bg-surface-raised border border-border rounded-lg shadow-lg z-50 min-w-[160px] py-1">
+              <div className="absolute right-0 top-full mt-1 bg-surface-raised border border-border-dim rounded-lg shadow-sm z-50 min-w-[160px] py-1">
                 <button
                   onClick={() => { copyAddress(); setShowWalletMenu(false) }}
                   className="w-full text-left px-3 py-2 text-sm text-text-secondary hover:text-text hover:bg-surface-alt transition"
@@ -101,7 +101,7 @@ export function Header() {
         ) : (
           <button
             onClick={() => connect({ connector: connectors[0] })}
-            className="bg-accent text-white rounded px-3 py-1.5 text-sm font-medium hover:bg-accent-dim transition"
+            className="bg-accent text-white rounded-lg px-4 py-1.5 text-sm font-medium hover:bg-accent-dim transition"
           >
             Connect Wallet
           </button>
