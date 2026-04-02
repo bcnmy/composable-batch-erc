@@ -35,7 +35,7 @@ export function useUnwind() {
           chainId: chain.chainId,
         },
 
-        verificationGasLimit: 120000n,
+        verificationGasLimit: 150000n,
       })
 
       setState({ status: 'signing' })

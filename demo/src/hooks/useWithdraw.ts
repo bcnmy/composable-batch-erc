@@ -52,7 +52,7 @@ export function useWithdraw() {
           address: '0x0000000000000000000000000000000000000000',
           chainId: chain.chainId,
         },
-        verificationGasLimit: 120000n,
+        verificationGasLimit: 150000n,
       })
 
       setState({ status: 'signing' })

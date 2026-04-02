@@ -6,6 +6,8 @@ const LIQ_THRESHOLD = 0.825
 /** Compute the on-chain safety guard HF for a given loop count.
  *  Set to 95% of the expected HF — leaves room for swap slippage
  *  while still protecting against large price moves. */
+/** Compute the on-chain safety guard HF for a fresh position with given loop count.
+ *  Set to 95% of the expected HF — leaves room for swap slippage. */
 export function safetyGuardHF(loops: number): number {
   const expected = estimateHealthFactor(leverageAfterLoops(loops))
   return Math.max(expected * 0.95, 1.05)
@@ -36,6 +38,45 @@ export function leverageAfterLoops(loops: number): number {
   }
 
   return collateral // leverage = totalCollateral / equity, equity = 1 (normalized)
+}
+
+/**
+ * Simulate loops from an existing Aave position to project final collateral and debt.
+ * This accounts for borrow using TOTAL available capacity (existing + new), not just new deposit.
+ *
+ * @param loops - number of new loops
+ * @param newDepositUsd - new ETH deposit in USD
+ * @param existCollUsd - existing Aave collateral in USD
+ * @param existDebtUsd - existing Aave debt in USD
+ * @param ethPriceUsd - current ETH price
+ * @returns { projCollUsd, projDebtUsd, projHF }
+ */
+export function simulateLoopsFromState(
+  loops: number,
+  newDepositUsd: number,
+  existCollUsd: number,
+  existDebtUsd: number,
+): { projCollUsd: number; projDebtUsd: number; projHF: number } {
+  const s = 1 - SWAP_FEE
+  let collUsd = existCollUsd
+  let debtUsd = existDebtUsd
+
+  // First supply the new ETH deposit
+  collUsd += newDepositUsd
+
+  for (let i = 0; i < loops; i++) {
+    // Available borrows from the TOTAL position (this is what Aave sees)
+    const availBorrowsUsd = collUsd * AAVE_WETH_LTV - debtUsd
+    if (availBorrowsUsd <= 0) break
+    const borrowedUsd = availBorrowsUsd * BORROW_FRACTION
+    debtUsd += borrowedUsd
+    // Swap USDC → WETH: get borrowedUsd worth of WETH (minus swap fee)
+    const wethReceivedUsd = borrowedUsd * s
+    collUsd += wethReceivedUsd // supply WETH back to Aave
+  }
+
+  const projHF = debtUsd > 0 ? (collUsd * LIQ_THRESHOLD) / debtUsd : Infinity
+  return { projCollUsd: collUsd, projDebtUsd: debtUsd, projHF }
 }
 
 export function loopsForLeverage(target: number): number {

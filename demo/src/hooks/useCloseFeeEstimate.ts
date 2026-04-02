@@ -44,8 +44,7 @@ export function useCloseFeeEstimate(
             address: '0x0000000000000000000000000000000000000000',
             chainId: chain!.chainId,
           },
-
-          verificationGasLimit: 120000n,
+          verificationGasLimit: 150000n,
         })
 
         if (id !== abortRef.current) return

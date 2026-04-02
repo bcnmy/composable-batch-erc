@@ -13,11 +13,11 @@ import { erc20Abi } from '../abis/erc20'
 
 // Per-call gas limits based on typical on-chain costs + composable module overhead.
 const GAS = {
-  approve:       80_000n,
-  aaveWithdraw:  400_000n,  // Aave withdraw ~250k + lens static call + constraint
-  aaveRepay:     300_000n,  // Aave repay ~200k + balance read
-  uniswapSwap:   300_000n,  // Uniswap exactInputSingle ~150k + balance read
-  wethWithdraw:  100_000n,  // WETH.withdraw ~30k + balance read
+  approve:       20_000n,
+  aaveWithdraw:  130_000n,  // Aave withdraw ~250k + lens static call + constraint
+  aaveRepay:     100_000n,  // Aave repay ~200k + balance read
+  uniswapSwap:   100_000n,  // Uniswap exactInputSingle ~150k + balance read
+  wethWithdraw:  230_000n,  // WETH.withdraw ~30k + balance read
 } as const
 
 /**

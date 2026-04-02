@@ -1,4 +1,4 @@
-import { estimatePosition, safetyGuardHF, liquidationPrice, maxDrawdown } from '../lib/leverage-math'
+import { estimatePosition, safetyGuardHF, simulateLoopsFromState, liquidationPrice, maxDrawdown } from '../lib/leverage-math'
 
 type Props = {
   ethAmount: number
@@ -23,9 +23,14 @@ export function PositionPreview({
   const existingDebtUsd = Number(existingDebtBase) / 1e8
   const hasExisting = existingCollUsd > 0
 
-  // Projected totals (existing + new)
-  const totalCollUsd = existingCollUsd + pos.totalCollateralEth * ethPrice
-  const totalDebtUsd = existingDebtUsd + pos.totalDebtUsd
+  // Simulate loops from actual Aave state for accurate projections
+  const { projCollUsd, projDebtUsd, projHF } = simulateLoopsFromState(
+    loops, inputUsd, existingCollUsd, existingDebtUsd,
+  )
+
+  // Projected totals
+  const totalCollUsd = hasExisting ? projCollUsd : existingCollUsd + pos.totalCollateralEth * ethPrice
+  const totalDebtUsd = hasExisting ? projDebtUsd : existingDebtUsd + pos.totalDebtUsd
   const totalNetUsd = totalCollUsd - totalDebtUsd
   const totalLeverage = totalNetUsd > 0 ? totalCollUsd / totalNetUsd : 0
 
@@ -34,6 +39,9 @@ export function PositionPreview({
   const liqPrice = liquidationPrice(ethPrice, effectiveLeverage)
   const dropPct = maxDrawdown(effectiveLeverage)
   const totalEquityUsd = hasExisting ? totalNetUsd : inputUsd
+  const guardHF = hasExisting
+    ? Math.max(projHF * 0.95, 1.02)
+    : safetyGuardHF(loops)
 
   return (
     <div className="space-y-4">
@@ -78,7 +86,7 @@ export function PositionPreview({
         <div>
           <p className="text-sm text-success font-medium">Slippage protected</p>
           <p className="text-sm text-text-tertiary mt-0.5">
-            On-chain health factor guard at {safetyGuardHF(loops).toFixed(2)} minimum.
+            On-chain health factor guard at {guardHF.toFixed(2)} minimum.
             If price moves between signing and execution, the entire batch reverts atomically.
           </p>
         </div>

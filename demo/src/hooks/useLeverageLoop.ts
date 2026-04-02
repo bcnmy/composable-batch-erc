@@ -23,12 +23,16 @@ export function useLeverageLoop() {
     borrowFraction: number,
     amount?: bigint,
     existingUsdcBalance?: bigint,
+    existingCollateralBase?: bigint,
+    existingDebtBase?: bigint,
+    ethPriceUsd?: number,
   ) {
     try {
       setState({ status: 'building' })
 
       const instructions = await buildLeverageLoopInstructions(
         account, chain, loops, borrowFraction, amount, existingUsdcBalance,
+        existingCollateralBase, existingDebtBase, ethPriceUsd,
       )
 
       setState({ status: 'quoting' })
@@ -40,7 +44,7 @@ export function useLeverageLoop() {
           chainId: chain.chainId,
         },
 
-        verificationGasLimit: 120000n,
+        verificationGasLimit: 150000n,
       })
 
       setState({ status: 'signing' })

@@ -7,7 +7,7 @@ import {
 } from '@biconomy/abstractjs'
 import type { MultichainSmartAccount } from '@biconomy/abstractjs'
 import type { ChainConfig } from '../config/chains'
-import { safetyGuardHF } from './leverage-math'
+import { simulateLoopsFromState } from './leverage-math'
 import { aavePoolAbi } from '../abis/aavePool'
 import { aaveLensAbi } from '../abis/aaveLens'
 import { swapRouterAbi } from '../abis/swapRouter'
@@ -16,12 +16,12 @@ import { erc20Abi } from '../abis/erc20'
 // Per-call gas limits based on typical on-chain costs + composable module overhead.
 // The SDK sums these into the userOp's callGasLimit automatically.
 const GAS = {
-  wrapDeposit:  100_000n,  // WETH.deposit ~28k + module overhead
-  approve:      80_000n,   // ERC20.approve ~46k + balance read
-  aaveSupply:   350_000n,  // Aave supply ~220k + balance read + constraint
-  aaveBorrow:   400_000n,  // Aave borrow ~220k + lens static call + constraint
-  uniswapSwap:  300_000n,  // Uniswap exactInputSingle ~150k + balance read + struct encoding
-  healthCheck:  150_000n,  // approve + lens static call + constraint
+  wrapDeposit:  200_000n,  // WETH.deposit ~28k + module overhead
+  approve:      20_000n,   // ERC20.approve ~46k + balance read
+  aaveSupply:   130_000n,  // Aave supply ~220k + balance read + constraint
+  aaveBorrow:   130_000n,  // Aave borrow ~220k + lens static call + constraint
+  uniswapSwap:  100_000n,  // Uniswap exactInputSingle ~150k + balance read + struct encoding
+  healthCheck:  30_000n,  // approve + lens static call + constraint
 } as const
 
 export async function buildLeverageLoopInstructions(
@@ -33,9 +33,24 @@ export async function buildLeverageLoopInstructions(
   amount?: bigint,
   /** Existing USDC balance in the wallet (from a previous unwind). If > 0, adds a cleanup swap first. */
   existingUsdcBalance?: bigint,
+  /** Existing Aave position (8-decimal USD base). Used to project HF after adding loops. */
+  existingCollateralBase?: bigint,
+  existingDebtBase?: bigint,
+  /** Current ETH price in USD */
+  ethPriceUsd?: number,
 ) {
-  // Auto-compute safety guard: 95% of expected HF to allow for slippage
-  const minHealthFactor = parseEther(safetyGuardHF(loops).toFixed(4))
+  // Simulate loops from the actual Aave state to project the final HF.
+  // This uses the real borrow dynamics (80% of TOTAL available borrows per iteration).
+  const existCollUsd = Number(existingCollateralBase ?? 0n) / 1e8
+  const existDebtUsd = Number(existingDebtBase ?? 0n) / 1e8
+  const price = ethPriceUsd || 2000
+  const newDepositUsd = amount ? Number(amount) / 1e18 * price : 0
+
+  const { projHF } = simulateLoopsFromState(loops, newDepositUsd, existCollUsd, existDebtUsd)
+
+  // Guard at 95% of projected HF, floor at 1.02
+  const guard = Math.max(projHF * 0.95, 1.02)
+  const minHealthFactor = parseEther(guard.toFixed(4))
 
   const addr = account.addressOn(chain.chainId, true)!
   const instructions: any[] = []

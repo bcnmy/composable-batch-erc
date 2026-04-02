@@ -72,7 +72,7 @@ export function App() {
   const inputAmount = amountStr === '' ? 0 : parseFloat(amountStr)
   const useMax = amountStr === '' || inputAmount >= maxUsableEth
 
-  const feeEstimate = useFeeEstimate(account, meeClient, chain, loops, inputAmount, balances.usdcBalance)
+  const feeEstimate = useFeeEstimate(account, meeClient, chain, loops, inputAmount, balances.usdcBalance, aaveData.totalCollateralBase, aaveData.totalDebtBase, ethPrice)
 
   // Compute close-position iterations from current leverage
   const currentCollUsd = Number(aaveData.totalCollateralBase) / 1e8
@@ -90,7 +90,7 @@ export function App() {
     if (!account || !meeClient || !chain) return
     reset()
     const amount = useMax ? availableEth : parseEther(amountStr)
-    await execute(account, meeClient, chain, loops, 80, amount, balances.usdcBalance)
+    await execute(account, meeClient, chain, loops, 80, amount, balances.usdcBalance, aaveData.totalCollateralBase, aaveData.totalDebtBase, ethPrice)
     balances.refetch()
   }
 

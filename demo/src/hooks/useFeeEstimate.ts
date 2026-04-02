@@ -22,6 +22,9 @@ export function useFeeEstimate(
   loops: number,
   amountEth: number,
   usdcBalance: bigint,
+  existingCollateralBase?: bigint,
+  existingDebtBase?: bigint,
+  ethPriceUsd?: number,
 ): FeeEstimate {
   const [state, setState] = useState<FeeEstimate>({
     tokenAmount: '',
@@ -45,6 +48,7 @@ export function useFeeEstimate(
         const amount = parseEther(amountEth.toFixed(18))
         const instructions = await buildLeverageLoopInstructions(
           account, chain, loops, 80, amount, usdcBalance,
+          existingCollateralBase, existingDebtBase, ethPriceUsd,
         )
 
         if (id !== abortRef.current) return
@@ -56,7 +60,7 @@ export function useFeeEstimate(
             chainId: chain.chainId,
           },
 
-          verificationGasLimit: 120000n,
+          verificationGasLimit: 150000n,
         })
 
         if (id !== abortRef.current) return
