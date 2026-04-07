@@ -50,13 +50,19 @@ export function useLeverageLoop() {
       setState({ status: 'signing' })
 
       const { hash } = await meeClient.executeQuote({ quote })
-      console.log('MEEScan supertx:', `https://meescan.biconomy.io/tx/${hash}`)
 
       setState({ status: 'executing' })
 
-      const receipt = await meeClient.waitForSupertransactionReceipt({ hash })
-      // userOps[1] is the dev userOp (index 0 is payment)
-      const txHash = receipt.receipts?.[1]?.transactionHash ?? receipt.receipts?.[0]?.transactionHash
+      // const receipt = await meeClient.waitForSupertransactionReceipt({
+      //   hash,
+      // })
+      const receipt = await meeClient.waitForSupertransactionReceipt({
+        hash,
+        mode: "fast-block"
+      })
+
+      // TODO: extract txHash from receipt once we confirm the structure
+      const txHash = receipt.receipts?.[1]?.transactionHash ?? receipt.receipts?.[0]?.transactionHash ?? undefined
 
       setState({ status: 'success', hash, txHash })
       return hash

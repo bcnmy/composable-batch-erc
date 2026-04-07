@@ -45,8 +45,14 @@ export function useUnwind() {
 
       setState({ status: 'executing' })
 
-      const receipt = await meeClient.waitForSupertransactionReceipt({ hash })
-      const txHash = receipt.receipts?.[1]?.transactionHash ?? receipt.receipts?.[0]?.transactionHash
+      // const receipt = await meeClient.waitForSupertransactionReceipt({ hash })
+      const receipt = await meeClient.waitForSupertransactionReceipt({
+        hash,
+        mode: "fast-block"
+      })
+      
+      // TODO: extract txHash from receipt once we confirm the structure
+      const txHash = receipt.receipts?.[1]?.transactionHash ?? receipt.receipts?.[0]?.transactionHash ?? undefined
 
       setState({ status: 'success', hash, txHash })
       return hash

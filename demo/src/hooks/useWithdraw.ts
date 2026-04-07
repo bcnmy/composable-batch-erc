@@ -62,8 +62,17 @@ export function useWithdraw() {
 
       setState({ status: 'executing' })
 
-      const receipt = await meeClient.waitForSupertransactionReceipt({ hash })
-      const txHash = receipt.receipts?.[1]?.transactionHash ?? receipt.receipts?.[0]?.transactionHash
+      // const receipt = await meeClient.waitForSupertransactionReceipt({ hash })
+      const receipt = await meeClient.waitForSupertransactionReceipt({
+        hash,
+        mode: "fast-block"
+      })
+
+      // index[1] is the dev userOp (index[0] is payment userOp)
+      const txHash =
+        receipt.receipts?.[1]?.transactionHash ??
+        receipt.userOps?.[1]?.executionData ??
+        undefined
 
       setState({ status: 'success', hash, txHash })
       return hash

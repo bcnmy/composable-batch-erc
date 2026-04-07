@@ -12,7 +12,13 @@ export function AccountPanel({ smartAccountAddress, ethBalance, nativeSymbol }: 
   const [copied, setCopied] = useState(false)
   const hasBalance = ethBalance > 0n
   const [justLanded, setJustLanded] = useState(false)
-  const wasWaitingForDeposit = useRef(false)
+
+  // Track: have we seen a confirmed zero balance (not just the initial default)?
+  // On first render ethBalance is 0n because the query hasn't loaded yet.
+  // We only start watching for deposits after we've seen a real zero balance
+  // followed by a subsequent update.
+  const seenZeroAfterInit = useRef(false)
+  const updateCount = useRef(0)
 
   function copyAddress() {
     navigator.clipboard.writeText(smartAccountAddress)
@@ -21,8 +27,12 @@ export function AccountPanel({ smartAccountAddress, ethBalance, nativeSymbol }: 
   }
 
   useEffect(() => {
+    updateCount.current++
+    // Skip the first update (default 0n before query returns)
+    if (updateCount.current <= 1) return
+    // After the first real query result, if it's zero, mark as waiting
     if (ethBalance === 0n) {
-      wasWaitingForDeposit.current = true
+      seenZeroAfterInit.current = true
     }
   }, [ethBalance])
 
@@ -30,12 +40,13 @@ export function AccountPanel({ smartAccountAddress, ethBalance, nativeSymbol }: 
     if (!hasBalance) return
     const alreadySeen = localStorage.getItem(`${SEEN_KEY}:${smartAccountAddress}`)
     if (alreadySeen) return
-    if (wasWaitingForDeposit.current) {
+    if (seenZeroAfterInit.current) {
       setJustLanded(true)
       const t = setTimeout(() => setJustLanded(false), 2500)
       localStorage.setItem(`${SEEN_KEY}:${smartAccountAddress}`, '1')
       return () => clearTimeout(t)
     }
+    // Already had balance on first load — mark as seen, no animation
     localStorage.setItem(`${SEEN_KEY}:${smartAccountAddress}`, '1')
   }, [hasBalance, smartAccountAddress])
 
