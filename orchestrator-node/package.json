@@ -1,8 +1,7 @@
 {
-  "name": "mee-node",
+  "name": "orchestrator-node",
   "private": true,
   "version": "1.4.6",
-  "author": "Biconomy",
   "license": "MIT",
   "main": "dist/main.js",
   "scripts": {
