@@ -1,6 +1,6 @@
-# Run and maintain the MEE Node — tutorial
+# Run and maintain the Orchestrator Node — tutorial
 
-This guide walks through running and maintaining a MEE Node step by step: why the master EOA exists, where fees go, what is auto-funded, chain and RPC requirements, chain config (including type and payment tokens), arbitrary payment, permit tokens, trusted gas tank (sponsored execution), and how to monitor the node and connect with the SDK.
+This guide walks through running and maintaining an Orchestrator Node step by step: why the master EOA exists, where fees go, what is auto-funded, chain and RPC requirements, chain config (including type and payment tokens), arbitrary payment, permit tokens, trusted gas tank (sponsored execution), and how to monitor the node and connect with the SDK.
 
 ---
 
@@ -101,7 +101,7 @@ So: for any payment token that implements Permit, set `permitEnabled: true` so t
 - **Simulation of the payment userOp is skipped** (signature is still verified against the expected gas tank owner).
 - The node **executes all other userOps** in the supertransaction **without requiring fees from the user** — the “payment” is considered covered by the trusted tank.
 
-So: set `TRUSTED_GAS_TANK_ADDRESS` to the gas tank contract (or EOA) that is allowed to sponsor supertransactions. When a payment userOp from that address is marked sponsored and its signature is valid, the node will execute the batch without expecting the user to pay fees. This is used for fully sponsored flows (e.g. Biconomy-hosted gas tank).
+So: set `TRUSTED_GAS_TANK_ADDRESS` to the gas tank contract (or EOA) that is allowed to sponsor supertransactions. When a payment userOp from that address is marked sponsored and its signature is valid, the node will execute the batch without expecting the user to pay fees. This is used for fully sponsored flows (e.g. an operator-hosted gas tank).
 
 ---
 
@@ -114,41 +114,43 @@ So: set `TRUSTED_GAS_TANK_ADDRESS` to the gas tank contract (or EOA) that is all
 1. The **app or third party** requests a quote from the node, specifying **`paymentInfo.sender`** as the **nexus gas tank account** address (and the chosen payment token). The node returns a quote that includes the supertransaction userOps: **`userOps[0]`** is the **payment userOp** (fee payment from the gas tank to the node).
 2. **Two signatures are required** before execution:
    - **Gas tank private key** must sign the **payment userOp** (`userOps[0]` in the supertransaction userOps list from the generated quote).
-   - **End user** must sign the **quote** by signing the **supertransaction hash** — best done using the utility functions provided in the **AbstractJS SDK** (e.g. for quote signing and execution).
+   - **End user** must sign the **quote** by signing the **supertransaction hash** — best done using the utility functions provided in a **compatible SDK** (e.g. for quote signing and execution).
 3. Once both signatures are attached, the client submits the signed quote to the node’s execute endpoint; the node runs the supertransaction and receives fees from the gas tank.
 
 **Requirements:** The token must be (1) **accepted by this node** (listed in the chain’s payment tokens or supported as arbitrary payment), and (2) the **balance** must exist on the nexus gas tank account, and the **nexus account must be deployed** on the given chain.
 
-**Concrete example:** For a full implementation of how third parties can set up an external gas tank and use it with the node (including quote, signing, and execution), see the **[MEE self-hosted sponsorship starter kit](https://github.com/bcnmy/mee-self-hosted-sponsorship-starter-kit)**.
+**Concrete example:** For a full implementation of how third parties can set up an external gas tank and use it with the node (including quote, signing, and execution), see the **[self-hosted sponsorship starter kit](https://github.com/bcnmy/mee-self-hosted-sponsorship-starter-kit)**.
 
 **Difference from trusted gas tank:** With **`TRUSTED_GAS_TANK_ADDRESS`**, the node **unconditionally** executes and does **not** require fees from the user (trusted mode). With **external gas tank sponsorship**, the node **does** require payment: the payment userOp moves funds from the third party’s gas tank to the node, so the node is compensated and the third party runs their own sponsorship flow.
 
 ---
 
-## 10. Monitoring the node and connecting with @biconomy/abstractjs
+## 10. Monitoring the node and connecting with an SDK
 
 **Monitoring:**
 
 - **GET /v1/info** — Aggregated health: Redis, Token Slot Detection, chains (RPC, paymaster, workers), simulator/executor queues, node wallets. Use this to confirm the node and dependencies are healthy and to track paymaster and worker balances.
 - **Logs** — Use `LOG_LEVEL` (e.g. `debug`) and your logging stack to inspect quote, simulation, and execution flow.
 
-**When the node is fully set up and healthy:** Check that `/v1/info` shows all modules (Redis, chains, token-slot, simulator/executor, node wallets) in a healthy state. Then clients can use your node for quotes and execution by pointing the AbstractJS SDK at your node URL.
+**When the node is fully set up and healthy:** Check that `/v1/info` shows all modules (Redis, chains, token-slot, simulator/executor, node wallets) in a healthy state. Then clients can use your node for quotes and execution by pointing a compatible SDK at your node URL.
 
-**Connecting to your node via AbstractJS:**
+**Connecting to your node via SDK:**
 
-To connect to your MEE Node (e.g. after it is running and healthy), use the **`@biconomy/abstractjs`** SDK and pass your node’s base URL as the **`url`** option when creating the MEE client. All quote, quote-permit, and execute flows then go to your node instead of the default Biconomy network.
+To connect to your Orchestrator Node (e.g. after it is running and healthy), use a compatible SDK and pass your node’s base URL as the **`url`** option when creating the client. All quote, quote-permit, and execute flows then go to your node instead of a default network.
+
+Example using `@biconomy/abstractjs` (one compatible SDK):
 
 ```ts
 import { createMeeClient } from "@biconomy/abstractjs";
 
 const meeClient = await createMeeClient({
   account: orchestrator,   // your orchestrator/smart account
-  url: "https://your-mee-node-url",  // your MEE node base URL (e.g. https://mee.example.com)
+  url: "https://your-node-url",  // your node base URL (e.g. https://orchestrator.example.com)
   // apiKey: "optional-for-rate-limiting"
 });
 ```
 
-Use the client for quote, quote-permit, and exec as usual; traffic is sent to your node. Without `url`, the SDK uses the default Biconomy network.
+Use the client for quote, quote-permit, and exec as usual; traffic is sent to your node.
 
 ---
 
