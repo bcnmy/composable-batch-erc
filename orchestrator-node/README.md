@@ -1,6 +1,6 @@
-# MEE Node
+# Orchestrator Node
 
-MEE Node is the main node in the [Modular Execution Environment (MEE)](https://www.biconomy.io/post/modular-execution-environment-supertransactions) protocol. It issues cryptographically signed quotes for supertransactions and executes them across multiple chains.
+The Orchestrator Node simulates predicate conditions and submits composable batches for execution across multiple chains. It implements the orchestration layer for [ERC-8211 (Smart Batching)](https://ethereum-magicians.org/t/erc-8211-smart-batching/28135) — issuing cryptographically signed quotes for supertransactions and executing them atomically.
 
 ## Table of contents
 
@@ -10,14 +10,14 @@ MEE Node is the main node in the [Modular Execution Environment (MEE)](https://w
 - [Dependencies](#dependencies)
   - [Redis](#redis)
   - [Token Storage Detection Service](#token-storage-detection-service)
-- [Quick start](#quick-start)
+- [Quick start (Docker Compose)](#quick-start-docker-compose)
+- [Quick start (manual)](#quick-start-manual)
 - [Configuration](#configuration)
 - [Running the node](#running-the-node)
 - [Docker](#docker)
 - [API](#api)
 - [Health and operations](#health-and-operations)
 - [Further documentation](#further-documentation)
-- [Contact](#contact)
 
 ## Overview
 
@@ -41,13 +41,13 @@ See [docs/architecture.md](docs/architecture.md) for details.
 
 ## Prerequisites
 
-- [Bun](https://bun.sh) (runtime and package manager)
-- [Docker](https://www.docker.com) (optional, for Redis and token-storage service)
-- [Rust toolchain](https://rustup.rs) (only if you build the token-storage-detection service from source)
+- [Docker](https://www.docker.com) and [Docker Compose](https://docs.docker.com/compose/) (recommended)
+- [Bun](https://bun.sh) (only if running without Docker)
+- [Rust toolchain](https://rustup.rs) (only if building the token-storage-detection service from source)
 
 ## Dependencies
 
-The node requires two external services to run.
+The node requires two external services to run. Both are included in the Docker Compose setup.
 
 ### Redis
 
@@ -57,48 +57,50 @@ Redis is used for:
 - **Storage**: quotes and userOps (by hash), and custom fields
 - **Caching**: e.g. token slot detection, price feeds
 
-**Configuration** (see [.env.example](.env.example)):
-
-- `REDIS_HOST` (default: `localhost`)
-- `REDIS_PORT` (default: `6379`)
-
-**Run Redis locally (Docker):**
-
-```bash
-docker run -d --name redis -p 6379:6379 redis:7-alpine
-```
-
-Or use the project’s Compose file (includes Redis Stack):
-
-```bash
-docker compose up -d redis-stack
-```
-
 **Eviction**: Quote and userOp keys are not set with TTL, so Redis can grow over time. For production, configure an eviction policy (e.g. `maxmemory` + `maxmemory-policy allkeys-lru`). See [docs/dependencies.md](docs/dependencies.md#eviction-policy-recommended) for details.
-
-See [docs/dependencies.md](docs/dependencies.md#redis) for more detail.
 
 ### Token Storage Detection Service
 
-A separate HTTP service that returns the **ERC20 balance storage slot** for a given token and chain. The node calls it during simulation to build correct state overrides (e.g. for `balanceOf`).
-
-**Configuration:**
-
-- `TOKEN_SLOT_DETECTION_SERVER_BASE_URL` (default: `http://127.0.0.1:5000`)
+A separate HTTP service that returns the **ERC20 balance storage slot** for a given token and chain. The node calls it during simulation to build correct state overrides.
 
 The service is implemented in Rust in `apps/token-storage-detection`. It exposes:
 
 - `GET /{chainId}/{tokenAddress}` → `{ success, msg: { slot } }`
 
-You can run your own instance or use a hosted one. See [docs/dependencies.md](docs/dependencies.md#token-storage-detection-service) and [apps/token-storage-detection/README.md](apps/token-storage-detection/README.md).
+See [docs/dependencies.md](docs/dependencies.md#token-storage-detection-service) and [apps/token-storage-detection/README.md](apps/token-storage-detection/README.md).
 
-## Quick start
+## Quick start (Docker Compose)
+
+The fastest way to run the full stack (node + Redis + token-storage-detection):
+
+1. **Configure**
+
+   ```bash
+   cp .env.example .env
+   # Set at least:
+   # - NODE_ID (required)
+   # - NODE_PRIVATE_KEY (required)
+   # - Chain RPC URLs in your chain config
+   ```
+
+2. **Run**
+
+   ```bash
+   docker compose up
+   ```
+
+3. **Verify**
+
+   Check [http://localhost:4000/v1/info](http://localhost:4000/v1/info) for version and health.
+
+## Quick start (manual)
+
+If you prefer to run services individually:
 
 1. **Clone and install**
 
    ```bash
-   git clone <repo-url>
-   cd mee-node
+   cd orchestrator-node
    bun i
    ```
 
@@ -115,8 +117,6 @@ You can run your own instance or use a hosted one. See [docs/dependencies.md](do
    cp .env.example .env   # set RPC URLs for chains you need
    cargo run --release --bin token-storage-detection
    ```
-
-   Default: `http://127.0.0.1:5000`. Adjust port in the app’s `.env` if needed (e.g. `SERVER_PORT`).
 
 4. **Configure the node**
 
@@ -137,7 +137,7 @@ You can run your own instance or use a hosted one. See [docs/dependencies.md](do
    bun run start:dev    # development (watch mode)
    ```
 
-   API listens on `PORT` (default `4000`). Check [http://localhost:4000/v1/info](http://localhost:4000/v1/info) (or your `PORT`) for version and health.
+   API listens on `PORT` (default `4000`).
 
 ## Configuration
 
@@ -167,21 +167,19 @@ Ensure Redis and the token-storage-detection service are up and reachable; other
 
 ## Docker
 
-- **Node image**: [bcnmy/mee-node](https://hub.docker.com/r/bcnmy/mee-node). Use with your own Redis and token-storage service.
-- **Token Storage Detection**: See [apps/token-storage-detection/Dockerfile](apps/token-storage-detection/Dockerfile). Build and run with the same env vars as the Rust app (RPC URLs, optional Redis, etc.).
-
-Example (node only):
+Build and run the node image locally:
 
 ```bash
+docker build -t orchestrator-node .
 docker run -e NODE_ID=... -e NODE_PRIVATE_KEY=... \
   -e REDIS_HOST=host.docker.internal \
   -e TOKEN_SLOT_DETECTION_SERVER_BASE_URL=http://host.docker.internal:5000 \
-  -p 4000:4000 bcnmy/mee-node
+  -p 4000:4000 orchestrator-node
 ```
 
-## API
+Or use `docker compose up` to run the full stack (recommended).
 
-Public HTTP API (see also live [docs](https://mee-node.biconomy.io/docs)):
+## API
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -191,12 +189,12 @@ Public HTTP API (see also live [docs](https://mee-node.biconomy.io/docs)):
 | POST | `/v1/quote-permit` | Request a quote with permit flow |
 | POST | `/v1/exec` | Execute a signed quote |
 
-The **quote** endpoint returns a signed quote (node’s commitment). The **execute** endpoint accepts the user-signed quote, validates it, and runs the intent on the configured chains.
+The **quote** endpoint returns a signed quote (node's commitment). The **execute** endpoint accepts the user-signed quote, validates it, and runs the intent on the configured chains.
 
 ## Health and operations
 
 - **`/v1/info`**: Returns node info and health for Redis, token-slot detection, chains, simulator, executor, and workers.
-- **Logs**: Structured (e.g. Pino). Level via `LOG_LEVEL`; `PRETTY_LOGS=1` for development.
+- **Logs**: Structured (Pino). Level via `LOG_LEVEL`; `PRETTY_LOGS=1` for development.
 - **Graceful shutdown**: Use SIGTERM; the process uses `tini` in Docker.
 
 See [docs/operations.md](docs/operations.md) for runbooks (startup, dependency checks, scaling, troubleshooting).
@@ -205,10 +203,7 @@ See [docs/operations.md](docs/operations.md) for runbooks (startup, dependency c
 
 - [docs/architecture.md](docs/architecture.md) — Process model, queues, and data flow
 - [docs/dependencies.md](docs/dependencies.md) — Redis (including eviction) and Token Storage Detection in detail
-- [docs/chain-configuration.md](docs/chain-configuration.md) — Adding and configuring chains: all config fields, price oracles (native + payment), and requirement that any chain referenced by an oracle must be in chain config
+- [docs/chain-configuration.md](docs/chain-configuration.md) — Adding and configuring chains
 - [docs/operations.md](docs/operations.md) — Runbooks and operations
+- [docs/run-and-maintain.md](docs/run-and-maintain.md) — Step-by-step tutorial
 - [.env.example](.env.example) — All configuration options
-
-## Contact
-
-Reach out: connect@biconomy.io
