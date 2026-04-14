@@ -977,7 +977,7 @@ export class SimulationService {
           abi: TokenWithPermitAbi,
         };
 
-        // This code is taken from AbstractJs SDK. The SDK can be installed and reused but copying this small chunk avoid additional dependencies
+        // This code is taken from the AbstractJs SDK (github.com/bcnmy/abstractjs). The SDK can be installed and reused but copying this small chunk avoids additional dependencies
         // Fetch required token data for EIP-712 domain and permit using multicall
         const values = await withTrace(
           "simulation.fetchPermitValues",
@@ -1327,7 +1327,7 @@ export class SimulationService {
         );
       }
 
-      // If sponsored ? The firstDevUserOp is considered to be a userOp at index=1. In that case index=0 is the biconomy gas tank nexus userOp.
+      // If sponsored ? The firstDevUserOp is considered to be a userOp at index=1. In that case index=0 is the gas tank nexus userOp.
       // If not sponsored ? The firstDevUserOp is considered to be a userOp at index=0 - which is the user's SCA address.
       const firstDevUserOp = paymentInfo.sponsored
         ? simulationUserOps[1]

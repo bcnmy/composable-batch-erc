@@ -198,7 +198,7 @@ export class QuotesService {
 
     let transactionType: MeeTransactionType = permit ? "fusion" : "normal";
 
-    // Biconomy hosted sponsorship will be considered as trusted sponsorship
+    // Hosted sponsorship will be considered as trusted sponsorship
     const isTrustedSponsorship =
       (paymentInfo.sponsored &&
         paymentInfo.sender.toLowerCase() ===
@@ -755,7 +755,7 @@ export class QuotesService {
       packedMeeUserOps[0].userOp.signature !== "0x00" && // handling the "0x00" edge case
       packedMeeUserOps[0].userOp.signature !== "0x"; // handling the "0x" edge case
 
-    // Biconomy hosted sponsorship will be considered as trusted sponsorship
+    // Hosted sponsorship will be considered as trusted sponsorship
     const isTrustedSponsorship =
       (isSponsoredSupertransaction &&
         packedMeeUserOps[0].userOp.sender.toLowerCase() ===
@@ -1352,7 +1352,7 @@ export class QuotesService {
 
     const now = unixTimestamp();
 
-    // Biconomy hosted sponsorship userOp simulation is skipped
+    // Hosted sponsorship userOp simulation is skipped
     if (isSponsoredSupertransaction && isTrustedSponsorship) {
       this.logger.trace(
         { requestId, superTransactionHash: hash },

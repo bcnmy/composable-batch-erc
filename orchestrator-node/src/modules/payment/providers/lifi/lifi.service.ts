@@ -45,7 +45,7 @@ export class LiFiPaymentService implements PaymentProvider {
     }
 
     createConfig({
-      integrator: "BICONOMY_MEE",
+      integrator: "ERC8211_ORCHESTRATOR",
       rpcUrls,
       apiKey: this.paymentConfiguration.lifiApiKey,
       userId: this.nodeConfiguration.name,
