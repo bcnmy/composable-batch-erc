@@ -1,0 +1,23 @@
+[package]
+name = "token-bss"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+alloy = { git = "https://github.com/alloy-rs/alloy", rev = "4316c68", features = [
+    "network",
+    "providers",
+    "provider-http",
+    "rpc-client",
+    "rpc-types-eth",
+    "rpc-types-trace",
+    "node-bindings",
+] }
+eyre = "0.6.12"
+tokio = { version = "1.32.0", features = ["full"] }
+hex = { version = "*", features = ["serde"] }
+futures = "0.3.28"
+rand = "0.9.2"
+
+[dev-dependencies]
+dotenv = "0.15.0"
