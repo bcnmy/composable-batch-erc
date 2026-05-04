@@ -1,0 +1,18 @@
+# system
+.git/
+.DS_Store
+
+# editors
+.vscode/
+.idea/
+*.iml
+
+# logs
+*.log
+
+# node
+node_modules/
+
+# build / output
+dist/
+build/
