@@ -1,6 +1,33 @@
 node_modules/
-.env
 dist/
 out/
 cache/
 *.tsbuildinfo
+
+# Secrets. `.env` alone does NOT match propamm-prod.env or staging.env, and this
+# repo is public, so match every env file and allow-list the templates back in.
+*.env
+.env*
+!.env.example
+!**/.env.example
+
+# Local state and scratch data that has no business in a public repo.
+dump.rdb
+*.rdb
+.DS_Store
+**/.DS_Store
+costs.csv
+
+# Sibling repos cloned into this workspace. Each has its own remote; committing
+# them here would vendor thousands of files and detach them from their history.
+/Biconomy_May26_MERGED/
+/abstractjs/
+/composability/
+/composable-sdk/
+/erc8211-contracts/
+/mvp-briefing/
+/nexus/
+/propamm-orchestrator/
+/smart-batching-sdk/
+/stx-api/
+/stx-contracts/
