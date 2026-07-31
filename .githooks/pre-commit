@@ -1,0 +1,49 @@
+#!/bin/sh
+# Blocks secrets from being committed. Enable once per clone with:
+#   git config core.hooksPath .githooks
+#
+# Bypass for a genuine false positive (a fixture, a docs example):
+#   SKIP_SECRET_SCAN=1 git commit ...
+#
+# Exists because load/sepolia.env.bak2-3 were committed carrying live signer,
+# relayer and trader keys. The ignore list held `.env` and `.env.local`, which match
+# those exact names only, so a `.bak2` suffix walked straight past it. An ignore list
+# is a default; this is the check.
+
+[ -n "$SKIP_SECRET_SCAN" ] && exit 0
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -z "$staged" ] && exit 0
+
+fail=0
+
+# 1. Filenames that look like real env files. Templates are fine.
+env_hits=$(printf '%s\n' "$staged" \
+  | grep -E '(^|/)\.env($|\.)|\.env$|\.env\.' \
+  | grep -vE '\.(example|sample|template)$' || true)
+if [ -n "$env_hits" ]; then
+  echo "BLOCKED: env file(s) staged:"
+  printf '%s\n' "$env_hits" | sed 's/^/    /'
+  echo "  Rename to *.env.example with placeholder values, or unstage."
+  fail=1
+fi
+
+# 2. Key material in the staged content. Names/assignments only, so this does not
+#    fire on addresses (40 hex) or on hashes appearing in prose.
+for f in $staged; do
+  case "$f" in
+    *.example|*.sample|*.template|*.lock|*.svg|*.png|*.jpg|*.pdf) continue ;;
+  esac
+  git show ":$f" 2>/dev/null | grep -qiE \
+    '(private_key|signing_key|secret_key|mnemonic|seed_phrase)[a-z0-9_]*[[:space:]]*[=:][[:space:]]*.?(0x)?[a-fA-F0-9]{32,}|-----BEGIN [A-Z ]*PRIVATE KEY-----' \
+    && { echo "BLOCKED: key material in $f"; fail=1; }
+done
+
+if [ "$fail" -ne 0 ]; then
+  echo ""
+  echo "Nothing was committed. If this is a false positive:"
+  echo "  SKIP_SECRET_SCAN=1 git commit ..."
+  exit 1
+fi
+
+exit 0
