@@ -1,4 +1,22 @@
 services:
+  # Local PropAMM chain: anvil preloaded with a state dump where every contract is ALREADY
+  # deployed (see local/addresses.env). Nothing to deploy, nothing to fund — `docker compose up
+  # anvil` and point your node at http://localhost:8545. Rebuild the dump with
+  # local/build-local-state.sh only when the contracts change.
+  anvil:
+    image: ghcr.io/foundry-rs/foundry:latest
+    entrypoint: ["anvil"]
+    command:
+      - "--host=0.0.0.0"
+      - "--port=8545"
+      - "--chain-id=31337"
+      - "--load-state=/state/anvil-state.json"
+    ports:
+      - "8545:8545"
+    volumes:
+      - ./local:/state:ro
+    restart: unless-stopped
+
   orchestrator-node:
     build:
       context: .
