@@ -9,10 +9,10 @@ docker compose up anvil        # from orchestrator-node/
 ```
 
 RPC is `http://localhost:8545`, chain id `31337`. Every address is listed in
-[`addresses.env`](addresses.env) and can be sourced directly:
+[`addresses.txt`](addresses.txt) and can be sourced directly:
 
 ```bash
-set -a; source local/addresses.env; set +a
+set -a; source local/addresses.txt; set +a
 cast code $SETTLEMENT --rpc-url $RPC_URL     # non-empty: it is already there
 ```
 
@@ -29,7 +29,7 @@ and not of who deployed it:
 | PropAMMHostedSettlement | `0x000000b1f3a8698EE468df1997F76e0ce31fa0C8` |
 | OrchestratorRelay | `0x00000066A4De9CF236EEA34798e65e1Edc42A260` |
 
-`PropAMMPuller` is a plain `CREATE`, so its address is local-only — read it from `addresses.env` or
+`PropAMMPuller` is a plain `CREATE`, so its address is local-only — read it from `addresses.txt` or
 from `hostedSettlement.puller()`.
 
 Permit2 and the two ERC-8211 contracts are copied from Base mainnet at their canonical addresses, so
@@ -46,7 +46,7 @@ else — never reuse them against a real chain.
 
 The makers honour ladders signed by the signer they were constructed with:
 
-`MM_SIGNER_MM1` and `MM_SIGNER_MM2` in `addresses.env` are anvil accounts **2 and 3**. Take the
+`MM_SIGNER_MM1` and `MM_SIGNER_MM2` in `addresses.txt` are anvil accounts **2 and 3**. Take the
 matching keys from anvil's own startup banner (`docker compose logs anvil`) rather than from a file
 here — they are the standard deterministic set, identical on every machine.
 

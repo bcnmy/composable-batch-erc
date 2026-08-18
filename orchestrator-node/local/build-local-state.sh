@@ -4,7 +4,8 @@
 #
 # Run this only when the contracts change. Developers never run it: they run `docker compose up`,
 # which starts anvil with `--load-state` and hands them a chain where every PropAMM address already
-# has code. Addresses are written to addresses.env next to the state file.
+# has code. Addresses are written to addresses.txt next to the state file (not .env: this
+# repo gitignores every env file, and these are public addresses, not secrets).
 #
 # Needs: anvil, cast, forge, and an archive RPC for Base mainnet (to copy the external dependencies
 # that PropAMM expects to already exist on chain: Permit2 and the two ERC-8211 contracts).
@@ -14,7 +15,7 @@ set -euo pipefail
 CONTRACTS="${CONTRACTS:-$HOME/Projects/propamm-contracts}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STATE="$HERE/anvil-state.json"
-ADDRESSES="$HERE/addresses.env"
+ADDRESSES="$HERE/addresses.txt"
 RPC="http://127.0.0.1:8545"
 PORT=8545
 
